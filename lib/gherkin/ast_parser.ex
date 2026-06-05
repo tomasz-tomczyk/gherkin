@@ -735,10 +735,8 @@ defmodule Gherkin.AstParser do
   defp validate(%GherkinDocument{feature: nil}), do: []
 
   defp validate(%GherkinDocument{feature: feature}) do
-    feature_tag_errors(feature.tags) ++ feature_table_errors(feature)
+    feature_table_errors(feature)
   end
-
-  defp feature_tag_errors(_tags), do: []
 
   defp feature_table_errors(%Feature{children: children}) do
     Enum.flat_map(children, &child_table_errors/1)
