@@ -65,24 +65,56 @@ defmodule Gherkin.AstParser do
   defp do_parse(uri, tokens, language) do
     comments = collect_comments(tokens)
 
-    case parse_feature(tokens, language) do
-      {:ok, feature} ->
+    case open_doc_string_error(tokens) do
+      nil ->
+        {feature, parse_errors} = parse_feature(tokens, language)
         doc = %GherkinDocument{uri: uri, feature: feature, comments: comments}
-        finalize(doc)
+        finalize(doc, parse_errors)
 
-      {:empty} ->
-        doc = %GherkinDocument{uri: uri, feature: nil, comments: comments}
-        finalize(doc)
-
-      {:error, errors} ->
-        {:error, errors}
+      error ->
+        # An unterminated doc string makes the rest of the parse meaningless; the
+        # reference emits a single unexpected-EOF error for it.
+        {:error, [error]}
     end
   end
 
-  defp finalize(doc) do
-    case validate(doc) do
-      [] -> {:ok, IdAssigner.assign(doc)}
-      errors -> {:error, errors}
+  # If a `"""`/``` fence is opened but never closed, the file ends inside a doc string.
+  # Report `(lastLine+1:0): unexpected end of file, expected: #DocStringSeparator, #Other`.
+  defp open_doc_string_error(tokens) do
+    open? =
+      Enum.reduce(tokens, nil, fn
+        %Token{type: :doc_string_separator, payload: %{delimiter: d}}, nil -> d
+        %Token{type: :doc_string_separator, payload: %{delimiter: d}}, open when d == open -> nil
+        _t, open -> open
+      end)
+
+    case open? do
+      nil ->
+        nil
+
+      _ ->
+        last_line = tokens |> List.last() |> Map.get(:line)
+        line = last_line + 1
+        msg = "unexpected end of file, expected: #DocStringSeparator, #Other"
+        {prefixed(msg, line, 0), %Location{line: line, column: nil}}
+    end
+  end
+
+  # Combine structural parse errors (recovered token-level errors) with semantic
+  # validation errors (e.g. inconsistent table cell counts), sorted into source order
+  # by line/column so multi-error output matches the reference ordering.
+  defp finalize(doc, parse_errors) do
+    errors = parse_errors ++ validate(doc)
+
+    case errors do
+      [] ->
+        {:ok, IdAssigner.assign(doc)}
+
+      _ ->
+        sorted =
+          Enum.sort_by(errors, fn {_msg, %Location{line: l, column: c}} -> {l, c || 0} end)
+
+        {:error, sorted}
     end
   end
 
@@ -121,36 +153,46 @@ defmodule Gherkin.AstParser do
 
   # --- feature ----------------------------------------------------------------
 
+  # Returns `{feature_or_nil, errors}`. Junk lines before the Feature header are
+  # recorded as errors and skipped (error recovery), matching the reference parser.
   defp parse_feature(tokens, language) do
     {feature_tags, rest} = take_tags(tokens)
 
     case rest do
       [%Token{type: :feature_line} = ft | after_feature] ->
         {description, body} = take_description(after_feature)
+        {children, _rest, errors} = parse_children(body, language, [], :feature, [])
 
-        case parse_children(body, language, [], :feature) do
-          {:ok, children, _rest} ->
-            {:ok,
-             %Feature{
-               location: loc(ft),
-               language: language,
-               keyword: ft.payload.keyword,
-               name: ft.payload.text,
-               description: description,
-               tags: build_tags(feature_tags),
-               children: children
-             }}
+        feature = %Feature{
+          location: loc(ft),
+          language: language,
+          keyword: ft.payload.keyword,
+          name: ft.payload.text,
+          description: description,
+          tags: build_tags(feature_tags),
+          children: children
+        }
 
-          {:error, _} = err ->
-            err
-        end
+        {feature, errors}
 
       [] ->
-        {:empty}
+        {nil, []}
+
+      [%Token{type: :other} = junk | _] ->
+        # Pre-feature junk: record, skip the line, retry from the next line.
+        error = unexpected(junk, feature_expected())
+        {feature, errors} = parse_feature(drop_line(tokens, junk), language)
+        {feature, [error | errors]}
 
       [other | _] ->
-        {:error, [unexpected(other, feature_expected())]}
+        {nil, [unexpected(other, feature_expected())]}
     end
+  end
+
+  # Drop tokens up to and including the token on the given line, so recovery resumes
+  # on the following line.
+  defp drop_line(tokens, %Token{line: line}) do
+    Enum.drop_while(tokens, &(&1.line <= line))
   end
 
   defp feature_expected do
@@ -159,55 +201,103 @@ defmodule Gherkin.AstParser do
 
   # --- children walk (returns remaining tokens) -------------------------------
 
-  defp parse_children(tokens, language, acc, scope) do
+  # Returns `{children, remaining_tokens, errors}`. Unrecognized lines are recorded as
+  # errors and skipped so multiple errors surface in one pass (error recovery).
+  defp parse_children(tokens, language, acc, scope, errors) do
     tokens = skip_noise(tokens)
 
     case tokens do
       [] ->
-        {:ok, Enum.reverse(acc), []}
+        {Enum.reverse(acc), [], Enum.reverse(errors)}
 
       [%Token{type: :background_line} = bt | rest] ->
         {bg, after_bg} = parse_background(bt, rest, language)
-        parse_children(after_bg, language, [{:background, bg} | acc], scope)
+        parse_children(after_bg, language, [{:background, bg} | acc], scope, errors)
 
       [%Token{type: :rule_line} | _] when scope == :rule ->
-        {:ok, Enum.reverse(acc), tokens}
+        {Enum.reverse(acc), tokens, Enum.reverse(errors)}
 
       [%Token{type: :rule_line} = rt | rest] when scope == :feature ->
-        {rule, after_rule} = parse_rule(rt, [], rest, language)
-        parse_children(after_rule, language, [{:rule, rule} | acc], scope)
+        {rule, after_rule, rerrors} = parse_rule(rt, [], rest, language)
+
+        parse_children(
+          after_rule,
+          language,
+          [{:rule, rule} | acc],
+          scope,
+          rev_prepend(rerrors, errors)
+        )
 
       [%Token{type: :tag_line} | _] = tagged ->
         {tags, rest} = take_tags(tagged)
+        tag_errors = tag_line_errors(tagged)
 
         case rest do
           [%Token{type: t} = head | hrest] when t in [:scenario_line, :scenario_outline_line] ->
             {scenario, after_sc} = parse_scenario(head, tags, hrest, language)
-            parse_children(after_sc, language, [{:scenario, scenario} | acc], scope)
+
+            parse_children(
+              after_sc,
+              language,
+              [{:scenario, scenario} | acc],
+              scope,
+              rev_prepend(tag_errors, errors)
+            )
 
           [%Token{type: :rule_line} | _] when scope == :rule ->
-            # Tags introduce a rule -> belongs to the feature; stop the rule.
-            {:ok, Enum.reverse(acc), tagged}
+            {Enum.reverse(acc), tagged, Enum.reverse(errors)}
 
           [%Token{type: :rule_line} = rt | rrest] when scope == :feature ->
-            {rule, after_rule} = parse_rule(rt, tags, rrest, language)
-            parse_children(after_rule, language, [{:rule, rule} | acc], scope)
+            {rule, after_rule, rerrors} = parse_rule(rt, tags, rrest, language)
+
+            parse_children(
+              after_rule,
+              language,
+              [{:rule, rule} | acc],
+              scope,
+              rev_prepend(rerrors, rev_prepend(tag_errors, errors))
+            )
 
           [other | _] ->
-            {:error, [unexpected(other, scenario_expected())]}
+            error = unexpected(other, scenario_expected())
+            parse_children(drop_line(tokens, other), language, acc, scope, [error | errors])
 
           [] ->
-            {:error, [eof_error(List.last(tagged), tag_eof_expected())]}
+            error = eof_error(List.last(tagged), tag_eof_expected())
+            {Enum.reverse(acc), [], Enum.reverse([error | errors])}
         end
 
       [%Token{type: t} = head | rest] when t in [:scenario_line, :scenario_outline_line] ->
         {scenario, after_sc} = parse_scenario(head, [], rest, language)
-        parse_children(after_sc, language, [{:scenario, scenario} | acc], scope)
+        parse_children(after_sc, language, [{:scenario, scenario} | acc], scope, errors)
 
       [other | _] ->
-        {:error, [unexpected(other, scenario_expected())]}
+        error = unexpected(other, scenario_expected())
+        parse_children(drop_line(tokens, other), language, acc, scope, [error | errors])
     end
   end
+
+  defp rev_prepend(new, errors), do: Enum.reverse(new) ++ errors
+
+  # A tag line where a whitespace-separated item does not start with `@` is malformed
+  # ("A tag may not contain whitespace"). The reference reports it at the column of
+  # the first tag on the line. Returns `[]` when the line is well-formed.
+  defp tag_line_errors([%Token{type: :tag_line} = t | _]) do
+    raw_items =
+      t.raw
+      |> String.split(~r/\s+/, trim: true)
+      |> Enum.take_while(&(not String.starts_with?(&1, "#")))
+
+    if Enum.all?(raw_items, &String.starts_with?(&1, "@")) do
+      []
+    else
+      msg = "A tag may not contain whitespace"
+      loc = %Location{line: t.line, column: t.column}
+      [{prefixed(msg, t.line, t.column), loc}]
+    end
+  end
+
+  defp tag_line_errors(_), do: []
 
   defp scenario_expected do
     [
@@ -224,7 +314,10 @@ defmodule Gherkin.AstParser do
     ]
   end
 
-  defp tag_eof_expected, do: ["#TagLine", "#ScenarioLine", "#Comment", "#Empty"]
+  # After a tag line at feature/rule scope, the reference's "expected at EOF" set is
+  # this fixed list (a tag may precede a Rule or a Scenario; the state machine reports
+  # this exact set when it then hits EOF).
+  defp tag_eof_expected, do: ["#TagLine", "#RuleLine", "#Comment", "#Empty"]
 
   # --- background -------------------------------------------------------------
 
@@ -245,9 +338,10 @@ defmodule Gherkin.AstParser do
 
   # --- rule -------------------------------------------------------------------
 
+  # Returns `{rule, remaining_tokens, errors}`.
   defp parse_rule(rt, tags, rest, language) do
     {description, after_desc} = take_description(rest)
-    {:ok, children, after_children} = parse_children(after_desc, language, [], :rule)
+    {children, after_children, errors} = parse_children(after_desc, language, [], :rule, [])
 
     rule = %Rule{
       location: loc(rt),
@@ -258,7 +352,7 @@ defmodule Gherkin.AstParser do
       children: children
     }
 
-    {rule, after_children}
+    {rule, after_children, errors}
   end
 
   # --- scenario / outline -----------------------------------------------------
