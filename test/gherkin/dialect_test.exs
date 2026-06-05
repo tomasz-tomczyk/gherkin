@@ -1,8 +1,7 @@
 defmodule Gherkin.DialectTest do
   @moduledoc """
-  Tests for the i18n foundation. The dialect data is pure, vendored, well-defined data,
-  so this is the one piece of the new pipeline that is fully implemented and verifiable
-  today — unlike the parser/pickles seams, which are still `:not_implemented`.
+  Tests for the i18n foundation: pure, vendored, well-defined dialect data
+  (`priv/gherkin-languages.json`) exposed via `Gherkin.Dialect`.
   """
 
   use ExUnit.Case, async: true
