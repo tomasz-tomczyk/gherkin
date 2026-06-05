@@ -493,7 +493,7 @@ defmodule Gherkin.AstParser do
         step = %Step{
           location: loc(st),
           keyword: st.payload.keyword,
-          keyword_type: keyword_type(st.payload.keyword, language, acc),
+          keyword_type: keyword_type(st.payload.keyword, language),
           text: st.payload.text,
           data_table: arg.data_table,
           doc_string: arg.doc_string
@@ -690,7 +690,7 @@ defmodule Gherkin.AstParser do
   # group(s): given->Context, when->Action, then->Outcome, and/but->Conjunction. A
   # keyword that belongs to MORE THAN ONE group (notably `* `, which is an alias in
   # every group) is "Unknown" — there is no inheritance from the previous step.
-  defp keyword_type(keyword, language, _prev) do
+  defp keyword_type(keyword, language) do
     types =
       [
         {:given, "Context"},
