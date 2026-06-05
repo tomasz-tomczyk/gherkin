@@ -31,9 +31,11 @@ defmodule Gherkin.Message do
   @type not_implemented :: :not_implemented
 
   @doc "The plain-Gherkin source media type."
+  @spec media_type_plain() :: String.t()
   def media_type_plain, do: @media_type_plain
 
   @doc "The Markdown-with-Gherkin source media type."
+  @spec media_type_markdown() :: String.t()
   def media_type_markdown, do: @media_type_markdown
 
   @doc """
@@ -113,6 +115,7 @@ defmodule Gherkin.Message do
   # Encode with recursively alphabetized keys to match the upstream golden byte layout.
   # The object/array structure is built explicitly (sorted) so key order is deterministic;
   # only scalar leaves are delegated to the built-in JSON encoder (Elixir 1.18+).
+  @spec encode_sorted(term()) :: String.t()
   def encode_sorted(term), do: term |> encode_iodata() |> IO.iodata_to_binary()
 
   defp encode_iodata(map) when is_map(map) and not is_struct(map) do
