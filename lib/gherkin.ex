@@ -27,12 +27,6 @@ defmodule Gherkin do
   stub backend. The optional `config :gherkin, :pipeline, ...` override is still
   honoured when present, but is never required.
 
-  ## Legacy parser
-
-  The original line-based parser (producing `Gherkin.Elements.*` structs) now lives
-  in `Gherkin.Legacy` (`Gherkin.Legacy.parse/1`, `flatten/1`, `scenarios_for/1`).
-  It is non-conformant and kept only for backwards compatibility.
-
   ## Examples
 
       iex> {:ok, doc} = Gherkin.parse("Feature: Hi\\n  Scenario: S\\n    Given a step\\n")

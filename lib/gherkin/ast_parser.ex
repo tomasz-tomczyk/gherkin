@@ -2,10 +2,9 @@ defmodule Gherkin.AstParser do
   @moduledoc """
   Recursive-descent parser: `Gherkin.AstParser.Token` stream -> `Gherkin.AST.GherkinDocument`.
 
-  This is the new reference-pipeline parser, separate from the legacy `Gherkin.parse/1`
-  (`Gherkin.Parser` / `Gherkin.Parsers.*`). It mirrors the cucumber-messages
-  `GherkinDocument` shape so the serializer in `Gherkin.Message` is a near-mechanical
-  projection.
+  This is the parser backing the public `Gherkin.parse/2` API. It mirrors the
+  cucumber-messages `GherkinDocument` shape so the serializer in `Gherkin.Message`
+  is a near-mechanical projection.
 
   ## Approach
 

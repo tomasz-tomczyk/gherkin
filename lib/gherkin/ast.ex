@@ -1,15 +1,11 @@
 defmodule Gherkin.AST do
   @moduledoc """
-  The reference-pipeline AST: faithful structs for a parsed `.feature` document.
+  The AST: faithful structs for a parsed `.feature` document.
 
-  These structs are the target output of the (not-yet-built) scanner+parser, and
-  the input to the (not-yet-built) pickles compiler. Their field names and nesting
-  mirror the official cucumber-messages `GherkinDocument` schema so that the NDJSON
+  These structs are the output of `Gherkin.AstParser` and the input to the pickles
+  compiler (`Gherkin.AstParser.PickleCompiler`). Their field names and nesting mirror
+  the official cucumber-messages `GherkinDocument` schema so that the NDJSON
   serializer (`Gherkin.Message`) is a near-mechanical projection.
-
-  This is intentionally separate from the legacy `Gherkin.Elements.*` structs, which
-  the current public `Gherkin.parse/1` API and its tests still depend on. The legacy
-  structs stay until the new parser fully replaces them.
 
   ## Node map (cucumber-messages name -> module)
 

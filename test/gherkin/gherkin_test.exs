@@ -1,16 +1,17 @@
 defmodule Gherkin.GherkinTest do
   use ExUnit.Case
-  alias Gherkin.Elements.Step
 
-  # New public API doctests.
+  alias Gherkin.AST.GherkinDocument
+
   doctest Gherkin
-  # Legacy parser doctests (moved out of `Gherkin` into `Gherkin.Legacy`).
-  doctest Gherkin.Legacy
 
   @file_name "test/fixtures/coffee.feature"
-  test "parsing" do
-    assert %Gherkin.Elements.Feature{scenarios: _scenarios, file: @file_name} =
-             Gherkin.Legacy.parse_file(@file_name)
+
+  test "parse/2 parses a fixture file via the public API" do
+    assert {:ok, %GherkinDocument{uri: @file_name, feature: feature}} =
+             @file_name |> File.read!() |> Gherkin.parse(uri: @file_name)
+
+    assert feature.name == "Serve coffee"
   end
 
   @outline """
@@ -28,46 +29,21 @@ defmodule Gherkin.GherkinTest do
         |  2      |  3    |  2     |
   """
 
-  test "changing an outline into a scenario" do
-    assert %Gherkin.Elements.Feature{line: 1} = feature = @outline |> Gherkin.Legacy.parse()
+  test "pickles/2 expands a scenario outline into one pickle per example row" do
+    assert [row1, row2] = Gherkin.pickles(@outline)
 
-    assert [
-             %Gherkin.Elements.Scenario{
-               name: "Buy coffee (Example 1)",
-               line: 3,
-               steps: [
-                 %Step{
-                   keyword: "Given",
-                   text: "there are 12 coffees left in the machine",
-                   line: 4
-                 },
-                 %Step{keyword: "And", text: "I have deposited $6", line: 5},
-                 %Step{keyword: "When", text: "I press the coffee button", line: 6},
-                 %Step{keyword: "Then", text: "I should be served 12 coffees", line: 7}
-               ]
-             },
-             %Gherkin.Elements.Scenario{
-               name: "Buy coffee (Example 2)",
-               line: 3,
-               steps: [
-                 %Step{
-                   keyword: "Given",
-                   text: "there are 2 coffees left in the machine",
-                   line: 4
-                 },
-                 %Step{keyword: "And", text: "I have deposited $3", line: 5},
-                 %Step{keyword: "When", text: "I press the coffee button", line: 6},
-                 %Step{keyword: "Then", text: "I should be served 2 coffees", line: 7}
-               ]
-             }
-           ] = Gherkin.Legacy.scenarios_for(feature.scenarios |> hd)
-  end
+    assert Enum.map(row1.steps, & &1.text) == [
+             "there are 12 coffees left in the machine",
+             "I have deposited $6",
+             "I press the coffee button",
+             "I should be served 12 coffees"
+           ]
 
-  test "flattening a feature into scenarios" do
-    feature = @outline |> Gherkin.Legacy.parse()
-
-    assert %Gherkin.Elements.Feature{
-             scenarios: [%Gherkin.Elements.Scenario{}, %Gherkin.Elements.Scenario{}]
-           } = Gherkin.Legacy.flatten(feature)
+    assert Enum.map(row2.steps, & &1.text) == [
+             "there are 2 coffees left in the machine",
+             "I have deposited $3",
+             "I press the coffee button",
+             "I should be served 2 coffees"
+           ]
   end
 end

@@ -3,7 +3,7 @@ defmodule Gherkin.AstParser.Token do
   A single scanned line, classified against a dialect's keyword sets.
 
   One token per source line. The scanner (`Gherkin.AstParser.Scanner`) produces these;
-  the parser (`Gherkin.Parser`) consumes them. Every token carries its 1-indexed
+  the parser (`Gherkin.AstParser`) consumes them. Every token carries its 1-indexed
   `line` and the 1-indexed `column` of its first significant character.
 
   ## Token `type`
