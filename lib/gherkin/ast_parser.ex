@@ -183,6 +183,10 @@ defmodule Gherkin.AstParser do
     tokens
     |> skip_doc_string_regions()
     |> Enum.filter(&(&1.type == :comment))
+    # MDG GFM-separator rows are `match_Comment` tokens that open a description but are
+    # NOT real document comments (the reference gives them matchedType Empty, so they
+    # never reach `gherkinDocument.comments`). They carry `gfm_separator: true`.
+    |> Enum.reject(&(&1.payload[:gfm_separator] == true))
     |> Enum.map(fn t ->
       %Comment{location: %Location{line: t.line, column: 1}, text: t.raw}
     end)
@@ -632,10 +636,18 @@ defmodule Gherkin.AstParser do
     take_description_lines(rest, terminators, acc, started?)
   end
 
-  defp take_description_lines([%Token{type: :comment} = t | rest], terminators, acc, started?) do
-    # Comments live in the document-level comment list; they contribute no text but,
-    # like the reference, do not toggle the started? flag (they aren't #Other).
-    take_description_lines(rest, terminators, [t | acc], started?)
+  defp take_description_lines([%Token{type: :comment} = t | rest], terminators, acc, _started?) do
+    # A comment OPENS the description, exactly like the reference grammar: in a
+    # description-expecting state, `match_Comment` does `start_rule("Description")` and
+    # transitions into the in-description state. From that point on there is no
+    # `match_Empty` short-circuit, so subsequent blank lines are collected as `#Other`
+    # description text (only trailing blanks are trimmed later). The comment itself
+    # contributes no text (`format_description` rejects `:comment`).
+    #
+    # This is what lets a leading MDG GFM-separator row (a `:comment`) turn the table
+    # rows beneath it into the `feature.description` (CCK `markdown` sample), and it
+    # also matches the reference for classic `#` comments that precede a description.
+    take_description_lines(rest, terminators, [t | acc], true)
   end
 
   defp take_description_lines([%Token{type: type} | _] = toks, terminators, acc, _started?)

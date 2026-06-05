@@ -81,15 +81,27 @@ defmodule Gherkin.AstParser.MarkdownScannerTest do
           | boz | boo |
         """)
 
-      # The separator row `| --- |` is NOT a table row (it is neutered to :empty).
-      assert types(tokens) == [:step_line, :table_row, :empty, :table_row]
-      [_step, header, _sep, body] = tokens
+      # The separator row `| --- |` is NOT a table row; the reference `match_Comment`
+      # matches it as a `#Comment` (regardless of indent), so it is `:comment`. Inside
+      # a table it is otherwise inert (the parser skips it like a blank).
+      assert types(tokens) == [:step_line, :table_row, :comment, :table_row]
+      [_step, header, sep, body] = tokens
+      assert sep.payload[:gfm_separator] == true
       assert Enum.map(header.payload.cells, & &1.value) == ["foo", "bar"]
       assert Enum.map(body.payload.cells, & &1.value) == ["boz", "boo"]
     end
 
-    test "an unindented GFM table is NOT a gherkin table (becomes empty)" do
+    test "an unindented non-separator GFM table row is neutered to empty" do
       assert body_types("| foo | bar |\n") == [:empty]
+    end
+
+    test "an unindented GFM separator row is a :comment (opens descriptions)" do
+      # The reference `match_Comment` matches any GFM separator row at any indent.
+      # As a `#Comment` it OPENS a Description rule, which is what turns the table
+      # rows beneath it into the feature description (CCK `markdown` sample).
+      [sep] = scan_body!("| --- | --- |\n")
+      assert sep.type == :comment
+      assert sep.payload[:gfm_separator] == true
     end
   end
 

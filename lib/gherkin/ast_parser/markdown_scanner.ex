@@ -22,14 +22,23 @@ defmodule Gherkin.AstParser.MarkdownScanner do
     * **Steps** — a Markdown list item `[*+-] <step keyword> <text>` is a step. The
       `* ` star keyword is *not* a step keyword here; the bullet marker plays its role.
     * **Tables** — GFM table rows indented **2-5 spaces** are data/examples table rows.
-      A GFM separator row (`| --- |`) is *not* a row; it is neutered to `:empty`.
-      Unindented GFM tables are ignored (also `:empty`).
+      Unindented GFM tables are ignored (neutered to `:empty`).
+    * **GFM separator rows** (`| --- |`, `| :-- |`, …) — a row whose cells are all
+      `:?-+:?` is *not* a data-table row. The reference `match_Comment` matches it
+      (regardless of indent) as a `#Comment`, which — crucially — *opens* a
+      `Description` rule when one is expected. We therefore classify it as `:comment`
+      (not `:empty`). It contributes no text, but, like the reference, it lets the
+      following `#Other` / blank lines be collected as description text. This is why
+      the leading `| boz | boo |`-style table in the CCK `markdown` sample becomes the
+      `feature.description`.
     * **Doc Strings** — GFM fenced code blocks (``` ``` ```/longer) are doc-string
       separators; the body between fences is verbatim `:other`.
     * **Tags** — backtick-wrapped `` `@tag` `` items on a line above a keyword.
     * **Everything else** ("neutered") — any line that matches no Gherkin token,
-      including prose, GFM separators and non-keyword `#` headers, becomes `:empty`.
-      Consequently MDG documents have empty descriptions, exactly like the reference.
+      including prose and non-keyword `#` headers, becomes `:empty`. Most MDG documents
+      therefore have empty descriptions, exactly like the reference; a description is
+      populated only when a GFM-separator `:comment` (or an in-description `:other`)
+      opens one.
 
   Per the reference, MDG does not support `# language:` headers; the dialect is fixed
   to the default (`en`) for the whole document.
@@ -130,6 +139,9 @@ defmodule Gherkin.AstParser.MarkdownScanner do
 
       (row = table_row(raw, line)) != nil ->
         {row, state}
+
+      (comment = gfm_separator_comment(trimmed, raw, line)) != nil ->
+        {comment, state}
 
       not state.feature_matched? ->
         # First significant, non-block line becomes the Feature line (whole-line name).
@@ -275,6 +287,29 @@ defmodule Gherkin.AstParser.MarkdownScanner do
   # `:--`, `--:`). Such rows are not Gherkin table rows.
   defp gfm_separator?(cells) do
     Enum.any?(cells, fn %{value: v} -> Regex.match?(~r/^:?-+:?$/, v) end)
+  end
+
+  # Reference `match_Comment`: a line that (trimmed) starts with `|` and whose cells
+  # form a GFM separator row matches as a `#Comment` — at *any* indent (an indented
+  # separator inside a table is handled here too, since `table_row/2` returns nil for
+  # separators). A `#Comment` carries no text but *opens* a description when one is
+  # expected (see `Gherkin.AstParser.take_description_lines/4`). Non-separator `|`
+  # lines do NOT match here and fall through to be neutered to `:empty`.
+  defp gfm_separator_comment(trimmed, raw, line) do
+    if String.starts_with?(trimmed, "|") and gfm_separator?(Scanner.parse_cells(raw, line)) do
+      # `gfm_separator: true` marks this as a *match_Comment* token that opens a
+      # description but is NOT a real document comment (the reference sets its
+      # matchedType to Empty, so it never appears in `gherkinDocument.comments`).
+      %Token{
+        type: :comment,
+        line: line,
+        column: leading_space_count(raw) + 1,
+        raw: raw,
+        payload: %{gfm_separator: true}
+      }
+    else
+      nil
+    end
   end
 
   # --- tags (backtick-wrapped) ------------------------------------------------

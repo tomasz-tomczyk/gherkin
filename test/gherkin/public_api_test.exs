@@ -70,6 +70,47 @@ defmodule Gherkin.PublicApiTest do
       assert [{:scenario, %{name: "s", steps: [%{text: "a step"}]}}] = feature.children
     end
 
+    test "an MDG GFM-separator row opens a feature description (CCK markdown sample)" do
+      # In MDG, a leading GFM-separator row (`| --- |`) is a `#Comment` that opens the
+      # feature Description; the table rows beneath it are then collected as `#Other`
+      # description text. The prose and the unindented header table above the separator
+      # are neutered to `#Empty` and dropped. This mirrors the reference, whose CCK
+      # `markdown` sample produces `feature.description == "| boz | boo |"`.
+      md = """
+      # Feature: Cheese
+
+      This table is not picked up by Gherkin (not indented 2+ spaces)
+
+      | foo | bar |
+      | --- | --- |
+      | boz | boo |
+
+
+      ## Rule: Nom nom nom
+
+      ### Scenario: s
+
+      * Given a step
+      """
+
+      assert {:ok, %GherkinDocument{feature: feature, comments: comments}} =
+               Gherkin.parse(md, markdown: true)
+
+      # Only the row beneath the separator survives; leading prose / header table and
+      # trailing blank lines are trimmed.
+      assert feature.description == "| boz | boo |"
+      # The GFM separator is NOT a real document comment (reference emits none here).
+      assert comments == []
+    end
+
+    test "MDG features without a description-opening separator stay description-free" do
+      md =
+        "# Feature: F\n\nJust some prose that is not a description.\n\n## Scenario: s\n\n* Given a step\n"
+
+      assert {:ok, %GherkinDocument{feature: feature}} = Gherkin.parse(md, markdown: true)
+      assert feature.description == ""
+    end
+
     test "a .md uri auto-detects the Markdown dialect" do
       md = "# Feature: F\n\n## Scenario: s\n\n* Given a step\n"
 
