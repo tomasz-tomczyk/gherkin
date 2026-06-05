@@ -28,7 +28,7 @@ defmodule Gherkin.Mixfile do
   #
   # Type "mix help compile.app" for more information
   def application do
-    [applications: [:logger, :runtime_tools]]
+    [extra_applications: [:logger, :runtime_tools]]
   end
 
   # Dependencies can be Hex packages:
@@ -42,6 +42,7 @@ defmodule Gherkin.Mixfile do
   # Type "mix help deps" for more examples and options
   defp deps do
     [
+      {:jason, "~> 1.4"},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:excoveralls, "~> 0.10", only: :test}
     ]
@@ -56,7 +57,13 @@ defmodule Gherkin.Mixfile do
   end
 
   defp aliases do
-    [publish: ["hex.publish", "hex.publish docs", "tag"], tag: &tag_release/1]
+    [
+      publish: ["hex.publish", "hex.publish docs", "tag"],
+      tag: &tag_release/1,
+      # Run only the conformance suite and print the scoreboard. These tests are
+      # tagged :conformance + :pending and are excluded from the default `mix test`.
+      conformance: ["test --only conformance"]
+    ]
   end
 
   defp tag_release(_) do
