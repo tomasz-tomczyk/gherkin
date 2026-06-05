@@ -24,6 +24,8 @@ defmodule Gherkin.AstParser.Scanner do
   alias Gherkin.Dialect
   alias Gherkin.AstParser.Token
 
+  import Gherkin.AstParser.LineUtil, only: [split_lines: 1, leading_space_count: 1]
+
   @language_re ~r/^\s*#\s*language\s*:\s*(?<lang>[^\s]+)\s*$/
 
   @doc """
@@ -50,25 +52,6 @@ defmodule Gherkin.AstParser.Scanner do
 
       err ->
         {:error, err}
-    end
-  end
-
-  # Split into lines, stripping a single trailing \r per line (CRLF support). A
-  # trailing newline does NOT create a spurious empty final line.
-  defp split_lines(data) do
-    data
-    |> String.split("\n")
-    |> drop_trailing_empty()
-    |> Enum.map(&String.replace_suffix(&1, "\r", ""))
-  end
-
-  # `"a\nb\n"` -> ["a","b"] not ["a","b",""]. But `"a\nb"` -> ["a","b"], and ""
-  # -> [""] (one empty line, matching upstream's single empty token for empty input
-  # is actually no tokens; handled by the parser's empty-feature path).
-  defp drop_trailing_empty(parts) do
-    case Enum.reverse(parts) do
-      ["" | rest] -> Enum.reverse(rest)
-      _ -> parts
     end
   end
 
@@ -138,6 +121,14 @@ defmodule Gherkin.AstParser.Scanner do
 
   # Block keywords (Feature:, Rule:, ...) are "keyword" + optional ":" + name.
   # Step keywords carry their trailing space and have no ":".
+  #
+  # Block-group try order. The only *load-bearing* invariant is that
+  # `:scenario_outline` is tried before `:scenario`, so the longer "Scenario Outline:"
+  # keyword wins over the "Scenario:" prefix. The remaining positions are independent
+  # (each group's keywords are disjoint, so no two ever match the same line) — which is
+  # why this list and `Gherkin.AstParser.MarkdownScanner`'s differ in where `:rule`
+  # sits. If you add/reorder groups, preserve the outline-before-scenario rule in BOTH
+  # scanners.
   defp classify_keyword(raw, trimmed, line, column, language) do
     block_groups = [
       {:feature_line, :feature},
@@ -217,13 +208,6 @@ defmodule Gherkin.AstParser.Scanner do
   end
 
   # --- helpers ----------------------------------------------------------------
-
-  defp leading_space_count(line) do
-    line
-    |> String.graphemes()
-    |> Enum.take_while(&(&1 == " " or &1 == "\t"))
-    |> length()
-  end
 
   defp doc_string_separator(trimmed) do
     cond do

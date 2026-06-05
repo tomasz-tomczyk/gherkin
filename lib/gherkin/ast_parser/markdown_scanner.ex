@@ -48,6 +48,8 @@ defmodule Gherkin.AstParser.MarkdownScanner do
   alias Gherkin.AstParser.Token
   alias Gherkin.Dialect
 
+  import Gherkin.AstParser.LineUtil, only: [split_lines: 1, leading_space_count: 1]
+
   @header_re ~r/^(\#{1,6}\s)(.*)$/
   # 1-5 leading whitespace then `|` (reference: /^\s\s\s?\s?\s?\|/ is 2-5; the leading
   # cell column maths uses the actual indent). We accept 2-5 spaces to match the spec.
@@ -76,22 +78,6 @@ defmodule Gherkin.AstParser.MarkdownScanner do
       end)
 
     {:ok, tokens, language}
-  end
-
-  # Reuse the classic scanner's line splitting (CRLF handling, no spurious trailing
-  # empty line). It is a pure transform on the raw text.
-  defp split_lines(data) do
-    data
-    |> String.split("\n")
-    |> drop_trailing_empty()
-    |> Enum.map(&String.replace_suffix(&1, "\r", ""))
-  end
-
-  defp drop_trailing_empty(parts) do
-    case Enum.reverse(parts) do
-      ["" | rest] -> Enum.reverse(rest)
-      _ -> parts
-    end
   end
 
   # --- per-line classification (stateful: doc-string fence + feature-seen) -----
@@ -174,8 +160,12 @@ defmodule Gherkin.AstParser.MarkdownScanner do
 
   # --- headers (block keyword lines) ------------------------------------------
 
-  # Block keyword groups, longest keyword first within a group, Scenario Outline tried
-  # before Scenario so the longer keyword wins.
+  # Block keyword groups, longest keyword first within a group. The only load-bearing
+  # invariant is that `:scenario_outline` is tried before `:scenario` so the longer
+  # "Scenario Outline:" keyword wins. The remaining positions are independent (groups'
+  # keywords are disjoint), which is why this list orders `:rule` differently from
+  # `Gherkin.AstParser.Scanner`'s — both are correct. If you add/reorder groups,
+  # preserve the outline-before-scenario rule in BOTH scanners.
   @block_groups [
     {:feature_line, :feature},
     {:background_line, :background},
@@ -339,11 +329,4 @@ defmodule Gherkin.AstParser.MarkdownScanner do
   defp media_type(rest), do: String.trim(rest)
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(s), do: s
-
-  defp leading_space_count(line) do
-    line
-    |> String.graphemes()
-    |> Enum.take_while(&(&1 == " " or &1 == "\t"))
-    |> length()
-  end
 end
