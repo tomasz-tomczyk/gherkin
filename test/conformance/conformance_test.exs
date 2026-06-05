@@ -8,6 +8,11 @@ defmodule Gherkin.ConformanceTest do
   `*.ast.ndjson` / `*.pickles.ndjson`. For every `testdata/bad/*.feature` it compares the
   emitted `parseError` NDJSON against the golden `*.errors.ndjson`.
 
+  The Markdown-with-Gherkin twins (`testdata/good/*.feature.md`) are scored the same
+  way against their `*.feature.md.ast.ndjson` / `*.feature.md.pickles.ndjson` goldens,
+  in a separate scoreboard section so the plain `.feature` headline numbers stay
+  directly comparable.
+
   Because the parser/serializer aren't built yet, the comparisons mostly resolve to
   `:not_implemented`. Rather than turning the suite red, the harness *counts* outcomes
   and PRINTS a baseline scoreboard, then asserts only that the harness itself ran. As
@@ -33,8 +38,8 @@ defmodule Gherkin.ConformanceTest do
   # We rebuild that exact uri per file so emitted envelopes can match the goldens.
   defp upstream_uri(kind, basename), do: "../testdata/#{kind}/#{basename}"
 
-  # Only plain `.feature` files (skip the Markdown `.feature.md` twins for now; they
-  # share the same golden mechanics and can be folded in once the parser handles them).
+  # The plain `.feature` corpus (the Markdown `.feature.md` twins are scored in a
+  # separate section so the plain headline numbers stay directly comparable).
   defp good_features do
     Path.wildcard(Path.join(@good_dir, "*.feature"))
     |> Enum.reject(&String.ends_with?(&1, ".md"))
@@ -44,6 +49,12 @@ defmodule Gherkin.ConformanceTest do
   defp bad_features do
     Path.wildcard(Path.join(@bad_dir, "*.feature"))
     |> Enum.reject(&String.ends_with?(&1, ".md"))
+    |> Enum.sort()
+  end
+
+  # The Markdown-with-Gherkin twins (`*.feature.md`) and their `*.feature.md.*` goldens.
+  defp markdown_features do
+    Path.wildcard(Path.join(@good_dir, "*.feature.md"))
     |> Enum.sort()
   end
 
@@ -136,13 +147,32 @@ defmodule Gherkin.ConformanceTest do
         grade(Gherkin.Conformance.errors_ndjson(uri, data), golden)
       end
 
+    markdown = markdown_features()
+
+    md_ast_results =
+      for path <- markdown do
+        uri = upstream_uri("good", Path.basename(path))
+        data = File.read!(path)
+        grade(Gherkin.Conformance.ast_ndjson(uri, data), path <> ".ast.ndjson")
+      end
+
+    md_pickle_results =
+      for path <- markdown do
+        uri = upstream_uri("good", Path.basename(path))
+        data = File.read!(path)
+        grade(Gherkin.Conformance.pickles_ndjson(uri, data), path <> ".pickles.ndjson")
+      end
+
     ast = tally(ast_results)
     pickle = tally(pickle_results)
     err = tally(error_results)
+    md_ast = tally(md_ast_results)
+    md_pickle = tally(md_pickle_results)
 
     n_ast = length(ast_results)
     n_pickle = length(pickle_results)
     n_err = length(error_results)
+    n_md = length(md_ast_results)
 
     line = String.duplicate("=", 64)
 
@@ -155,7 +185,12 @@ defmodule Gherkin.ConformanceTest do
      Pickles #{pickle.pass}/#{n_pickle}\tpass=#{pickle.pass} fail=#{pickle.fail} pending=#{pickle.not_implemented} error=#{pickle.error}
      Errors  #{err.pass}/#{n_err}\tpass=#{err.pass} fail=#{err.fail} pending=#{err.not_implemented} error=#{err.error}
     #{line}
+     Markdown (.feature.md) dialect:
+     AST     #{md_ast.pass}/#{n_md}\tpass=#{md_ast.pass} fail=#{md_ast.fail} pending=#{md_ast.not_implemented} error=#{md_ast.error}
+     Pickles #{md_pickle.pass}/#{n_md}\tpass=#{md_pickle.pass} fail=#{md_pickle.fail} pending=#{md_pickle.not_implemented} error=#{md_pickle.error}
+    #{line}
      Conformance: AST #{ast.pass}/#{n_ast}, Pickles #{pickle.pass}/#{n_pickle}, Errors #{err.pass}/#{n_err}
+     Markdown:    AST #{md_ast.pass}/#{n_md}, Pickles #{md_pickle.pass}/#{n_md}
     #{line}
     """)
 

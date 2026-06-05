@@ -40,6 +40,21 @@ defmodule Gherkin.Conformance do
   @spec pipeline() :: module()
   def pipeline, do: Application.get_env(:gherkin, :pipeline, @default_pipeline)
 
+  # Parse through the configured backend, routing `.feature.md` uris to the Markdown
+  # dialect via the optional `parse/3` callback (falling back to plain `parse/2` for
+  # backends that do not implement it, e.g. the not-implemented stub).
+  defp parse(uri, data) do
+    backend = pipeline()
+
+    cond do
+      String.ends_with?(uri, ".md") and function_exported?(backend, :parse, 3) ->
+        backend.parse(uri, data, :markdown)
+
+      true ->
+        backend.parse(uri, data)
+    end
+  end
+
   @doc """
   Produce the `Source` envelope NDJSON for a feature. Fully implemented.
 
@@ -57,7 +72,7 @@ defmodule Gherkin.Conformance do
   """
   @spec ast_ndjson(String.t(), String.t()) :: result()
   def ast_ndjson(uri, data) do
-    case pipeline().parse(uri, data) do
+    case parse(uri, data) do
       {:ok, document} ->
         case Message.gherkin_document_envelope(document) do
           :not_implemented -> :not_implemented
@@ -81,7 +96,7 @@ defmodule Gherkin.Conformance do
   def pickles_ndjson(uri, data) do
     backend = pipeline()
 
-    case backend.parse(uri, data) do
+    case parse(uri, data) do
       {:ok, document} ->
         case backend.compile_pickles(document) do
           :not_implemented ->
@@ -112,7 +127,7 @@ defmodule Gherkin.Conformance do
   """
   @spec errors_ndjson(String.t(), String.t()) :: result()
   def errors_ndjson(uri, data) do
-    case pipeline().parse(uri, data) do
+    case parse(uri, data) do
       {:error, errors} when is_list(errors) ->
         {:ok,
          errors

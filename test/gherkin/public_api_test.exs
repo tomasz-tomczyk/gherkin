@@ -61,6 +61,36 @@ defmodule Gherkin.PublicApiTest do
       assert {:error, [{message, _location} | _]} = Gherkin.parse("not a feature at all")
       assert is_binary(message)
     end
+
+    test "markdown: true parses the Markdown-with-Gherkin dialect" do
+      md = "# Feature: F\n\n## Scenario: s\n\n* Given a step\n"
+
+      assert {:ok, %GherkinDocument{feature: feature}} = Gherkin.parse(md, markdown: true)
+      assert feature.name == "F"
+      assert [{:scenario, %{name: "s", steps: [%{text: "a step"}]}}] = feature.children
+    end
+
+    test "a .md uri auto-detects the Markdown dialect" do
+      md = "# Feature: F\n\n## Scenario: s\n\n* Given a step\n"
+
+      assert {:ok, %GherkinDocument{feature: %{name: "F"}}} =
+               Gherkin.parse(md, uri: "x.feature.md")
+    end
+
+    test "the same source produces the same pickles via .feature and .feature.md" do
+      plain = "Feature: F\n\n  Scenario: s\n    Given a step\n"
+      md = "# Feature: F\n\n## Scenario: s\n\n* Given a step\n"
+
+      plain_steps =
+        Gherkin.pickles(plain) |> Enum.flat_map(&Enum.map(&1.steps, fn s -> s.text end))
+
+      md_steps =
+        Gherkin.pickles(md, markdown: true)
+        |> Enum.flat_map(&Enum.map(&1.steps, fn s -> s.text end))
+
+      assert plain_steps == md_steps
+      assert plain_steps == ["a step"]
+    end
   end
 
   describe "parse!/2" do

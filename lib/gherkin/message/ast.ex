@@ -48,12 +48,14 @@ defmodule Gherkin.Message.AST do
     %{
       "location" => location(f.location),
       "language" => f.language,
-      "keyword" => f.keyword,
       "name" => f.name,
       "description" => f.description,
       "tags" => Enum.map(f.tags, &tag/1),
       "children" => Enum.map(f.children, &child/1)
     }
+    # A Markdown feature with no `# Feature:` header has no keyword; the reference
+    # omits the field entirely (rather than emitting null) in that case.
+    |> put_optional("keyword", f.keyword)
   end
 
   defp child({:background, bg}), do: %{"background" => background(bg)}

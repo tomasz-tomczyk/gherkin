@@ -28,6 +28,20 @@ defmodule Gherkin.Pipeline do
               | :not_implemented
 
   @doc """
+  Like `parse/2`, but with an explicit source `format`: `:plain` for classic
+  `.feature` source or `:markdown` for the Markdown-with-Gherkin (`.feature.md`)
+  dialect.
+
+  Optional: backends that do not implement it fall back to `parse/2` (plain).
+  """
+  @callback parse(uri :: String.t(), data :: String.t(), format :: :plain | :markdown) ::
+              {:ok, Gherkin.AST.GherkinDocument.t()}
+              | {:error, [{String.t(), Gherkin.Location.t()}]}
+              | :not_implemented
+
+  @optional_callbacks [parse: 3]
+
+  @doc """
   Compile a parsed document into a list of `Gherkin.Pickle` (outlines expanded,
   background prepended, tags inherited, placeholders substituted).
 
@@ -49,6 +63,9 @@ defmodule Gherkin.Pipeline.NotImplemented do
 
   @impl true
   def parse(_uri, _data), do: :not_implemented
+
+  @impl true
+  def parse(_uri, _data, _format), do: :not_implemented
 
   @impl true
   def compile_pickles(_document), do: :not_implemented

@@ -17,5 +17,8 @@ defmodule Gherkin.AstParser.Pipeline do
   def parse(uri, data), do: Gherkin.AstParser.parse(uri, data)
 
   @impl true
+  def parse(uri, data, format), do: Gherkin.AstParser.parse(uri, data, format)
+
+  @impl true
   def compile_pickles(document), do: Gherkin.AstParser.PickleCompiler.compile(document)
 end

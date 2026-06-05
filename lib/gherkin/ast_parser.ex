@@ -43,7 +43,7 @@ defmodule Gherkin.AstParser do
 
   alias Gherkin.Dialect
   alias Gherkin.Location
-  alias Gherkin.AstParser.{IdAssigner, Scanner, Token}
+  alias Gherkin.AstParser.{IdAssigner, MarkdownScanner, Scanner, Token}
 
   # --- description terminator sets (see the descriptions section below) -------
   #
@@ -101,11 +101,15 @@ defmodule Gherkin.AstParser do
   @doc """
   Parse feature `data` for `uri` into `{:ok, %GherkinDocument{}}` or
   `{:error, [{message, %Location{}}]}`.
+
+  `format` selects the scanner: `:plain` (default) for classic `.feature` source, or
+  `:markdown` for the Markdown-with-Gherkin `.feature.md` dialect. Both scanners emit
+  the same token stream, so the recursive-descent walk is format-agnostic.
   """
-  @spec parse(String.t(), String.t()) ::
+  @spec parse(String.t(), String.t(), :plain | :markdown) ::
           {:ok, GherkinDocument.t()} | {:error, [{String.t(), Location.t()}]}
-  def parse(uri, data) do
-    case Scanner.scan(data) do
+  def parse(uri, data, format \\ :plain) do
+    case scan(data, format) do
       {:ok, tokens, language} ->
         do_parse(uri, tokens, language)
 
@@ -113,6 +117,9 @@ defmodule Gherkin.AstParser do
         {:error, [{prefixed(message, line, column), Location.new(line, column)}]}
     end
   end
+
+  defp scan(data, :markdown), do: MarkdownScanner.scan(data)
+  defp scan(data, _plain), do: Scanner.scan(data)
 
   defp do_parse(uri, tokens, language) do
     comments = collect_comments(tokens)
@@ -334,6 +341,13 @@ defmodule Gherkin.AstParser do
   # A tag line where a whitespace-separated item does not start with `@` is malformed
   # ("A tag may not contain whitespace"). The reference reports it at the column of
   # the first tag on the line. Returns `[]` when the line is well-formed.
+  #
+  # Markdown tag lines (`` `@a` `@b` ``) carry a `markdown: true` payload flag: their
+  # whitespace-separated raw items are backtick-wrapped, not bare `@tags`, and the
+  # Markdown dialect explicitly permits whitespace between tags — so the classic
+  # whitespace-in-tags check does not apply to them.
+  defp tag_line_errors([%Token{type: :tag_line, payload: %{markdown: true}} | _]), do: []
+
   defp tag_line_errors([%Token{type: :tag_line} = t | _]) do
     raw_items =
       t.raw
@@ -552,7 +566,12 @@ defmodule Gherkin.AstParser do
   end
 
   defp unescape_doc(content, "\"\"\""), do: String.replace(content, "\\\"\\\"\\\"", "\"\"\"")
-  defp unescape_doc(content, "```"), do: String.replace(content, "\\`\\`\\`", "```")
+
+  # Any backtick fence (``` ``` ``` or a longer run, e.g. the Markdown ``` ```` ```)
+  # uses the same escape: an escaped triple-backtick `\`\`\`` becomes ``` ``` ```. A
+  # shorter run inside a longer fence is already literal body, so the replace is a
+  # no-op there.
+  defp unescape_doc(content, "`" <> _rest), do: String.replace(content, "\\`\\`\\`", "```")
 
   # --- tables -----------------------------------------------------------------
 

@@ -18,6 +18,9 @@ defmodule Gherkin do
   ## Options
 
     * `:uri` — the source uri embedded in the document / pickles (default `""`).
+    * `:markdown` — parse the source as the Markdown-with-Gherkin dialect
+      (`.feature.md`). Defaults to auto-detection: a `:uri` ending in `.md` is parsed
+      as Markdown unless `:markdown` is given explicitly.
     * `:pipeline` — override the backend module implementing `Gherkin.Pipeline`
       (default `Gherkin.AstParser.Pipeline`). Primarily for testing.
 
@@ -44,7 +47,7 @@ defmodule Gherkin do
   @default_pipeline Gherkin.AstParser.Pipeline
 
   @type parse_error :: {String.t(), Gherkin.Location.t()}
-  @type opts :: [uri: String.t(), pipeline: module()]
+  @type opts :: [uri: String.t(), markdown: boolean(), pipeline: module()]
 
   @doc """
   Parse feature `data` into `{:ok, %Gherkin.AST.GherkinDocument{}}` or
@@ -55,7 +58,23 @@ defmodule Gherkin do
   @spec parse(String.t(), opts()) ::
           {:ok, GherkinDocument.t()} | {:error, [parse_error()]}
   def parse(data, opts \\ []) when is_binary(data) do
-    pipeline(opts).parse(uri(opts), data)
+    backend = pipeline(opts)
+    uri = uri(opts)
+
+    case format(opts, uri) do
+      :plain -> backend.parse(uri, data)
+      format -> backend.parse(uri, data, format)
+    end
+  end
+
+  # Resolve the source format: explicit `:markdown` opt wins; otherwise a `.md` uri is
+  # auto-detected as the Markdown-with-Gherkin dialect; everything else is plain.
+  defp format(opts, uri) do
+    case Keyword.fetch(opts, :markdown) do
+      {:ok, true} -> :markdown
+      {:ok, _} -> :plain
+      :error -> if String.ends_with?(uri, ".md"), do: :markdown, else: :plain
+    end
   end
 
   @doc """

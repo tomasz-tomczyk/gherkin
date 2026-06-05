@@ -126,7 +126,7 @@ defmodule Gherkin.AstParser.Scanner do
         }
 
       String.starts_with?(trimmed, "|") ->
-        cells = parse_cells(raw, line)
+        cells = do_parse_cells(raw, line)
         %Token{type: :table_row, line: line, column: column, raw: raw, payload: %{cells: cells}}
 
       true ->
@@ -307,10 +307,20 @@ defmodule Gherkin.AstParser.Scanner do
 
   defp indent_aware_column(_raw, _indent, offset), do: offset + 1
 
+  @doc """
+  Parse a `|`-delimited table row's `raw` text (on 1-indexed `line`) into a list of
+  `%{value, line, column}` cell maps. Exposed so the Markdown scanner can reuse the
+  exact same cell splitting / escaping / column rules.
+  """
+  @spec parse_cells(String.t(), pos_integer()) :: [
+          %{value: String.t(), line: pos_integer(), column: pos_integer()}
+        ]
+  def parse_cells(raw, line), do: do_parse_cells(raw, line)
+
   # Cells: split on unescaped `|`. The cell value is the trimmed inner text with
   # table escapes resolved (`\\`->`\`, `\|`->`|`, `\n`->newline). The cell column is
   # the column of the first non-space char in the cell.
-  defp parse_cells(raw, line) do
+  defp do_parse_cells(raw, line) do
     # Drop everything up to and including the first `|`; cells are the segments
     # between bars. The trailing segment after the final `|` is discarded (it is not
     # a cell), which `split_cells` does by only emitting a cell when it *sees* a `|`.
