@@ -33,6 +33,11 @@ defmodule Gherkin.Mixfile do
     ]
   end
 
+  # The `conformance` alias is `mix test --only conformance`, so it must run in the
+  # `:test` env. Without this, `mix conformance` from a default (dev) shell aborts
+  # with "mix test is running in the dev environment". CI relies on this too.
+  def cli, do: [preferred_envs: [conformance: :test]]
+
   # Configuration for the OTP application
   #
   # Type "mix help compile.app" for more information
