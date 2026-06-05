@@ -9,8 +9,10 @@ defmodule Gherkin.Pickle do
     * `<placeholder>` substitution has been applied (incl. in tables/doc strings).
 
   Field names mirror the cucumber-messages `Pickle` schema. `ast_node_ids` link a
-  pickle back to the AST node(s) it was compiled from. The runner consumes pickles
-  only — it must never re-parse `.feature` syntax.
+  pickle back to the AST node(s) it was compiled from. `location` is the source
+  location the pickle derives from (the scenario's location, or — for an outline —
+  the Examples body-row's location). The runner consumes pickles only — it must
+  never re-parse `.feature` syntax.
   """
 
   @type t :: %__MODULE__{
@@ -18,6 +20,7 @@ defmodule Gherkin.Pickle do
           uri: String.t() | nil,
           name: String.t(),
           language: String.t(),
+          location: Gherkin.Location.t() | nil,
           steps: [Gherkin.PickleStep.t()],
           tags: [Gherkin.Pickle.Tag.t()],
           ast_node_ids: [String.t()]
@@ -27,6 +30,7 @@ defmodule Gherkin.Pickle do
             uri: nil,
             name: "",
             language: "en",
+            location: nil,
             steps: [],
             tags: [],
             ast_node_ids: []
