@@ -2,12 +2,15 @@ defmodule Gherkin.GherkinTest do
   use ExUnit.Case
   alias Gherkin.Elements.Step
 
+  # New public API doctests.
   doctest Gherkin
+  # Legacy parser doctests (moved out of `Gherkin` into `Gherkin.Legacy`).
+  doctest Gherkin.Legacy
 
   @file_name "test/fixtures/coffee.feature"
   test "parsing" do
     assert %Gherkin.Elements.Feature{scenarios: _scenarios, file: @file_name} =
-             Gherkin.parse_file(@file_name)
+             Gherkin.Legacy.parse_file(@file_name)
   end
 
   @outline """
@@ -26,7 +29,7 @@ defmodule Gherkin.GherkinTest do
   """
 
   test "changing an outline into a scenario" do
-    assert %Gherkin.Elements.Feature{line: 1} = feature = @outline |> Gherkin.parse()
+    assert %Gherkin.Elements.Feature{line: 1} = feature = @outline |> Gherkin.Legacy.parse()
 
     assert [
              %Gherkin.Elements.Scenario{
@@ -57,14 +60,14 @@ defmodule Gherkin.GherkinTest do
                  %Step{keyword: "Then", text: "I should be served 2 coffees", line: 7}
                ]
              }
-           ] = Gherkin.scenarios_for(feature.scenarios |> hd)
+           ] = Gherkin.Legacy.scenarios_for(feature.scenarios |> hd)
   end
 
   test "flattening a feature into scenarios" do
-    feature = @outline |> Gherkin.parse()
+    feature = @outline |> Gherkin.Legacy.parse()
 
     assert %Gherkin.Elements.Feature{
              scenarios: [%Gherkin.Elements.Scenario{}, %Gherkin.Elements.Scenario{}]
-           } = Gherkin.flatten(feature)
+           } = Gherkin.Legacy.flatten(feature)
   end
 end
