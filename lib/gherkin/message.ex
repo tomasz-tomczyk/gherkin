@@ -69,15 +69,17 @@ defmodule Gherkin.Message do
   def gherkin_document_envelope(_other), do: :not_implemented
 
   @doc """
-  Build a `Pickle` envelope from a `Gherkin.Pickle`.
+  Build a `Pickle` envelope from a `Gherkin.Pickle` (projects via `Gherkin.Message.Pickle`).
 
-  Returns `:not_implemented` until the pickles compiler + serializer are built.
+  Any other input yields `:not_implemented`, keeping the harness's pending branch live
+  for backends that pass through a non-pickle value while still being built.
   """
-  @spec pickle_envelope(Gherkin.Pickle.t()) :: envelope() | not_implemented()
-  def pickle_envelope(%Gherkin.Pickle{} = _pickle) do
-    # TODO(pickles fan-out): project the Pickle struct into the cucumber-messages shape.
-    :not_implemented
+  @spec pickle_envelope(Gherkin.Pickle.t() | term()) :: envelope() | not_implemented()
+  def pickle_envelope(%Gherkin.Pickle{} = pickle) do
+    %{"pickle" => Gherkin.Message.Pickle.pickle(pickle)}
   end
+
+  def pickle_envelope(_other), do: :not_implemented
 
   @doc "Build a `parseError` envelope from a message and source location (bad-path)."
   @spec parse_error_envelope(String.t(), String.t(), Gherkin.Location.t()) :: envelope()
