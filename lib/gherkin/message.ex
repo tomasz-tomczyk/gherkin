@@ -56,17 +56,17 @@ defmodule Gherkin.Message do
   @doc """
   Build a `GherkinDocument` envelope from a `Gherkin.AST.GherkinDocument`.
 
-  Returns `:not_implemented` until the AST serializer is built. The harness counts
-  `:not_implemented` as a non-passing result, so wiring the real projection here
-  drives the conformance score up.
+  Implemented for `%Gherkin.AST.GherkinDocument{}` (projects via `Gherkin.Message.AST`).
+  Any other input yields `:not_implemented`, keeping the harness's pending branch live
+  for backends that pass through a non-document value while still being built.
   """
-  @spec gherkin_document_envelope(Gherkin.AST.GherkinDocument.t()) ::
+  @spec gherkin_document_envelope(Gherkin.AST.GherkinDocument.t() | term()) ::
           envelope() | not_implemented()
-  def gherkin_document_envelope(%Gherkin.AST.GherkinDocument{} = _doc) do
-    # TODO(parser fan-out): project the AST struct tree into the cucumber-messages
-    # GherkinDocument shape (string ids, trailing-space keywords, location maps).
-    :not_implemented
+  def gherkin_document_envelope(%Gherkin.AST.GherkinDocument{} = doc) do
+    %{"gherkinDocument" => Gherkin.Message.AST.document(doc)}
   end
+
+  def gherkin_document_envelope(_other), do: :not_implemented
 
   @doc """
   Build a `Pickle` envelope from a `Gherkin.Pickle`.

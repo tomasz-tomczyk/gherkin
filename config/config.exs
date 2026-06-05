@@ -20,6 +20,10 @@ import Config
 #
 config :logger, level: :info
 
+# Wire the new recursive-descent parser as the conformance/AST pipeline backend.
+# Pickle compilation is still stubbed in this backend (next wave).
+config :gherkin, :pipeline, Gherkin.AstParser.Pipeline
+
 # It is also possible to import configuration files, relative to this
 # directory. For example, you can emulate configuration per environment
 # by uncommenting the line below and defining dev.exs, test.exs and such.
