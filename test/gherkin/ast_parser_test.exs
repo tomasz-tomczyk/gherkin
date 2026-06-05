@@ -90,6 +90,98 @@ defmodule Gherkin.AstParserTest do
     end
   end
 
+  describe "descriptions consume keyword-looking lines (official grammar)" do
+    # The CCK `minimal.feature`: `*`-prefixed bullets appear in the FEATURE
+    # description (before any Scenario), where the official grammar treats them as
+    # free-text Description (#Other), NOT steps. Steps are only steps inside a step
+    # block (under Background/Scenario/Outline).
+    test "bullet (*) lines in a feature description are description text, not steps" do
+      # Verbatim CCK minimal.feature (note the whitespace-only blank lines `  `, which
+      # the reference preserves in the description as raw `Other` text). Built
+      # explicitly so editor/heredoc trailing-space stripping can't alter the fixture.
+      source =
+        Enum.join(
+          [
+            "Feature: minimal",
+            "  ",
+            "  Cucumber doesn't execute this markdown, but @cucumber/react renders it.",
+            "  ",
+            "  * This is",
+            "  * a bullet",
+            "  * list",
+            "  ",
+            "  Scenario: cukes",
+            "    Given I have 42 cukes in my belly",
+            ""
+          ],
+          "\n"
+        )
+
+      doc = parse!(source)
+
+      assert %Feature{description: description, children: children} = doc.feature
+
+      # Interior blank line preserved with its raw whitespace; leading/trailing blank
+      # lines trimmed; bullet lines kept verbatim. Matches the reference AstBuilder.
+      assert description ==
+               "  Cucumber doesn't execute this markdown, but @cucumber/react renders it.\n  \n  * This is\n  * a bullet\n  * list"
+
+      # The only child is the Scenario; the bullets did NOT become steps.
+      assert [{:scenario, %Scenario{name: "cukes", steps: [step]}}] = children
+      assert %Step{text: "I have 42 cukes in my belly"} = step
+    end
+
+    test "step-keyword-looking lines in a feature description are description text" do
+      doc =
+        parse!("""
+        Feature: F
+          Given this looks like a step but is description
+          When in feature-header position
+
+          Scenario: s
+            Then a real step
+        """)
+
+      assert doc.feature.description ==
+               "  Given this looks like a step but is description\n  When in feature-header position"
+
+      assert [{:scenario, %Scenario{steps: [%Step{keyword: "Then ", text: "a real step"}]}}] =
+               doc.feature.children
+    end
+
+    test "a rule description also consumes bullet lines" do
+      doc =
+        parse!("""
+        Feature: F
+
+          Rule: R
+            * a bullet in a rule description
+
+            Scenario: s
+              Given a step
+        """)
+
+      [{:rule, rule}] = doc.feature.children
+      assert rule.description == "    * a bullet in a rule description"
+      assert [{:scenario, %Scenario{steps: [_]}}] = rule.children
+    end
+
+    test "in a scenario, a bullet line IS a step (description ends at the first step)" do
+      doc =
+        parse!("""
+        Feature: F
+
+          Scenario: s
+            a one-line description
+            * a bullet step
+        """)
+
+      [{:scenario, scenario}] = doc.feature.children
+      assert scenario.description == "    a one-line description"
+      assert [%Step{keyword: "* ", text: "a bullet step"}] = scenario.steps
+    end
+  end
+
   describe "rules" do
     test "a rule collects its own backgrounds and scenarios" do
       doc =

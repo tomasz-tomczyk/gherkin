@@ -45,6 +45,59 @@ defmodule Gherkin.AstParser do
   alias Gherkin.Location
   alias Gherkin.AstParser.{IdAssigner, Scanner, Token}
 
+  # --- description terminator sets (see the descriptions section below) -------
+  #
+  # The token types that END a description in each context (everything else is
+  # consumed as description #Other text). These mirror the reference parser's
+  # per-state matcher lists. Declared here so they are defined before use.
+
+  @feature_desc_terminators [
+    :background_line,
+    :tag_line,
+    :scenario_line,
+    :scenario_outline_line,
+    :rule_line
+  ]
+
+  # Background description (reference states 5/6): no ExamplesLine terminator.
+  @background_desc_terminators [
+    :step_line,
+    :tag_line,
+    :scenario_line,
+    :scenario_outline_line,
+    :rule_line
+  ]
+
+  # Scenario / Scenario Outline description (reference states 10/11): like Background
+  # but ExamplesLine also terminates (an outline with no steps can be followed directly
+  # by an Examples block).
+  @scenario_desc_terminators [
+    :step_line,
+    :tag_line,
+    :examples_line,
+    :scenario_line,
+    :scenario_outline_line,
+    :rule_line
+  ]
+
+  @examples_desc_terminators [
+    :table_row,
+    :tag_line,
+    :examples_line,
+    :scenario_line,
+    :scenario_outline_line,
+    :rule_line
+  ]
+
+  # The union of every token type that terminates a description in some context. A
+  # token of one of these types ends the description only when it is in the *current*
+  # context's terminator set; otherwise it is consumed as description text (#Other).
+  @all_desc_terminators Enum.uniq(
+                          @feature_desc_terminators ++
+                            @background_desc_terminators ++
+                            @scenario_desc_terminators ++ @examples_desc_terminators
+                        )
+
   @doc """
   Parse feature `data` for `uri` into `{:ok, %GherkinDocument{}}` or
   `{:error, [{message, %Location{}}]}`.
@@ -159,7 +212,7 @@ defmodule Gherkin.AstParser do
 
     case rest do
       [%Token{type: :feature_line} = ft | after_feature] ->
-        {description, body} = take_description(after_feature)
+        {description, body} = take_description(after_feature, @feature_desc_terminators)
         {children, _rest, errors} = parse_children(body, language, [], :feature, [])
 
         feature = %Feature{
@@ -321,7 +374,7 @@ defmodule Gherkin.AstParser do
   # --- background -------------------------------------------------------------
 
   defp parse_background(bt, rest, language) do
-    {description, after_desc} = take_description(rest)
+    {description, after_desc} = take_description(rest, @background_desc_terminators)
     {steps, after_steps} = parse_steps(after_desc, language, [])
 
     bg = %Background{
@@ -339,7 +392,7 @@ defmodule Gherkin.AstParser do
 
   # Returns `{rule, remaining_tokens, errors}`.
   defp parse_rule(rt, tags, rest, language) do
-    {description, after_desc} = take_description(rest)
+    {description, after_desc} = take_description(rest, @feature_desc_terminators)
     {children, after_children, errors} = parse_children(after_desc, language, [], :rule, [])
 
     rule = %Rule{
@@ -357,7 +410,7 @@ defmodule Gherkin.AstParser do
   # --- scenario / outline -----------------------------------------------------
 
   defp parse_scenario(head, tags, rest, language) do
-    {description, after_desc} = take_description(rest)
+    {description, after_desc} = take_description(rest, @scenario_desc_terminators)
     {steps, after_steps} = parse_steps(after_desc, language, [])
     {examples, after_examples} = parse_examples_blocks(after_steps, language, [])
 
@@ -379,7 +432,7 @@ defmodule Gherkin.AstParser do
 
     case after_tags do
       [%Token{type: :examples_line} = et | rest] ->
-        {description, after_desc} = take_description(rest)
+        {description, after_desc} = take_description(rest, @examples_desc_terminators)
         {header, body, after_table} = parse_examples_table(after_desc)
 
         examples = %Examples{
@@ -524,39 +577,79 @@ defmodule Gherkin.AstParser do
 
   # --- descriptions -----------------------------------------------------------
 
-  defp take_description(tokens) do
-    {desc_tokens, rest} = take_description_lines(tokens, [])
+  # The official grammar's `DescriptionHelper := #Empty* Description?` with
+  # `Description := (#Other | #Comment)+` is realised in the reference parser as a
+  # per-context state machine: when a description is expected, every line that is NOT
+  # one of the context's *terminator* tokens is consumed as description (#Other) —
+  # including step-keyword-looking lines (`Given …`) and `*` bullets in
+  # Feature/Rule-header position, which are description, not steps, there.
+  #
+  # The terminator set differs by context (mirrors the reference state machine):
+  #
+  #   * Feature / Rule header:  background, tag, scenario(+outline), rule lines
+  #   * Background:             step, tag, scenario(+outline), rule lines
+  #   * Scenario / Outline:     step, tag, examples, scenario(+outline), rule lines
+  #   * Examples:               table_row, tag, examples, scenario(+outline), rule lines
+  #
+  # `:scenario_line` and `:scenario_outline_line` both terminate everywhere a scenario
+  # would (the reference `match_ScenarioLine` matches both keywords). Leading `:empty`
+  # lines are consumed and discarded; once a non-empty description line is seen, later
+  # `:empty` lines are kept verbatim (their raw whitespace) and only trailing empties
+  # are trimmed — exactly the reference AstBuilder Description behaviour. The terminator
+  # sets themselves are module attributes declared near the top of the module.
+
+  defp take_description(tokens, terminators) do
+    {desc_tokens, rest} = take_description_lines(tokens, terminators, [], false)
     {format_description(desc_tokens), rest}
   end
 
-  defp take_description_lines(tokens, acc) do
-    case tokens do
-      [%Token{type: :empty} = t | rest] -> take_description_lines(rest, [t | acc])
-      [%Token{type: :comment} = t | rest] -> take_description_lines(rest, [t | acc])
-      [%Token{type: :other} = t | rest] -> take_description_lines(rest, [t | acc])
-      _ -> {Enum.reverse(acc), tokens}
+  # `started?` tracks whether a non-empty (Other) description line has been seen yet.
+  # Before that, leading `:empty` lines are dropped (DescriptionHelper's `#Empty*`).
+  defp take_description_lines([], _terminators, acc, _started?), do: {Enum.reverse(acc), []}
+
+  defp take_description_lines([%Token{type: :empty} = t | rest], terminators, acc, started?) do
+    # Leading empties (before any Other) are discarded; interior ones are kept.
+    acc = if started?, do: [t | acc], else: acc
+    take_description_lines(rest, terminators, acc, started?)
+  end
+
+  defp take_description_lines([%Token{type: :comment} = t | rest], terminators, acc, started?) do
+    # Comments live in the document-level comment list; they contribute no text but,
+    # like the reference, do not toggle the started? flag (they aren't #Other).
+    take_description_lines(rest, terminators, [t | acc], started?)
+  end
+
+  defp take_description_lines([%Token{type: type} | _] = toks, terminators, acc, _started?)
+       when type in @all_desc_terminators do
+    # Any terminator token ends the description; anything else is Other text.
+    if type in terminators do
+      {Enum.reverse(acc), toks}
+    else
+      [t | rest] = toks
+      take_description_lines(rest, terminators, [t | acc], true)
     end
   end
 
-  # Description text: comment lines are dropped (collected at the document level),
-  # leading/trailing blank lines stripped, interior blanks preserved. Each kept line
-  # retains its original leading whitespace (trailing whitespace trimmed).
+  defp take_description_lines([%Token{} = t | rest], terminators, acc, _started?) do
+    take_description_lines(rest, terminators, [t | acc], true)
+  end
+
+  # Description text: comment lines contribute nothing, trailing blank lines are
+  # stripped (interior blanks already preserved). Each kept line is the FULL raw line
+  # text (leading whitespace preserved, no trailing trim) — `getLineText(0)` in the
+  # reference. The scanner has already stripped any trailing `\r`.
   defp format_description(tokens) do
     tokens
     |> Enum.reject(&(&1.type == :comment))
-    |> Enum.map(fn
-      %Token{type: :empty} -> ""
-      %Token{type: :other, raw: raw} -> String.trim_trailing(raw)
-    end)
-    |> drop_edges()
+    |> Enum.map(& &1.raw)
+    |> drop_trailing_blanks()
     |> Enum.join("\n")
   end
 
-  defp drop_edges(lines) do
+  defp drop_trailing_blanks(lines) do
     lines
-    |> Enum.drop_while(&(&1 == ""))
     |> Enum.reverse()
-    |> Enum.drop_while(&(&1 == ""))
+    |> Enum.drop_while(&(String.trim(&1) == ""))
     |> Enum.reverse()
   end
 
