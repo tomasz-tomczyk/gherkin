@@ -111,19 +111,25 @@ defmodule Gherkin.Message do
 
   @doc false
   # Encode with recursively alphabetized keys to match the upstream golden byte layout.
-  def encode_sorted(term) do
-    term |> sort_keys() |> Jason.encode!()
+  # The object/array structure is built explicitly (sorted) so key order is deterministic;
+  # only scalar leaves are delegated to the built-in JSON encoder (Elixir 1.18+).
+  def encode_sorted(term), do: term |> encode_iodata() |> IO.iodata_to_binary()
+
+  defp encode_iodata(map) when is_map(map) and not is_struct(map) do
+    pairs =
+      map
+      |> Enum.map(fn {k, v} -> {to_string(k), v} end)
+      |> Enum.sort_by(fn {k, _} -> k end)
+      |> Enum.map(fn {k, v} -> [JSON.encode!(k), ?:, encode_iodata(v)] end)
+
+    [?{, Enum.intersperse(pairs, ?,), ?}]
   end
 
-  defp sort_keys(map) when is_map(map) and not is_struct(map) do
-    map
-    |> Enum.map(fn {k, v} -> {k, sort_keys(v)} end)
-    |> Enum.sort_by(fn {k, _} -> to_string(k) end)
-    |> Jason.OrderedObject.new()
+  defp encode_iodata(list) when is_list(list) do
+    [?[, list |> Enum.map(&encode_iodata/1) |> Enum.intersperse(?,), ?]]
   end
 
-  defp sort_keys(list) when is_list(list), do: Enum.map(list, &sort_keys/1)
-  defp sort_keys(other), do: other
+  defp encode_iodata(other), do: JSON.encode!(other)
 
   defp location_map(%Gherkin.Location{line: line, column: nil}), do: %{"line" => line}
 

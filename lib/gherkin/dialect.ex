@@ -167,7 +167,7 @@ defmodule Gherkin.Dialect do
   defp load! do
     languages_path()
     |> File.read!()
-    |> Jason.decode!()
+    |> JSON.decode!()
     |> Map.new(fn {code, raw} -> {code, normalize(code, raw)} end)
   end
 

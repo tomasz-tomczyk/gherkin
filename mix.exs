@@ -6,7 +6,7 @@ defmodule Gherkin.Mixfile do
     [
       app: :gherkin,
       version: @version,
-      elixir: "~> 1.3",
+      elixir: "~> 1.18",
       source_url: "https://github.com/cabbage-ex/gherkin",
       homepage_url: "https://github.com/cabbage-ex/gherkin",
       build_embedded: Mix.env() == :prod,
@@ -42,7 +42,6 @@ defmodule Gherkin.Mixfile do
   # Type "mix help deps" for more examples and options
   defp deps do
     [
-      {:jason, "~> 1.4"},
       {:ex_doc, "~> 0.29", only: :dev, runtime: false},
       {:excoveralls, "~> 0.10", only: :test}
     ]
