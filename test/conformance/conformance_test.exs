@@ -13,10 +13,10 @@ defmodule Gherkin.ConformanceTest do
   in a separate scoreboard section so the plain `.feature` headline numbers stay
   directly comparable.
 
-  Because the parser/serializer aren't built yet, the comparisons mostly resolve to
-  `:not_implemented`. Rather than turning the suite red, the harness *counts* outcomes
-  and PRINTS a baseline scoreboard, then asserts only that the harness itself ran. As
-  the pipeline is implemented, the printed score rises automatically — no edits here.
+  The pipeline is fully implemented, so the harness PRINTS the scoreboard and then
+  asserts 100% conformance in every area (AST, Pickles, Errors, and their Markdown
+  twins). Any regression turns the suite red and makes `mix conformance` exit
+  non-zero, so CI fails loudly rather than silently printing a lower scoreboard.
 
   These tests are tagged `:conformance` and `:pending`, so they are excluded from the
   default `mix test` (see `test/test_helper.exs`). Run them with:
@@ -66,7 +66,7 @@ defmodule Gherkin.ConformanceTest do
     |> String.split("\n", trim: true)
     |> Enum.map(fn line ->
       line
-      |> Jason.decode!()
+      |> JSON.decode!()
       |> strip_uri()
       |> Gherkin.Message.encode_sorted()
     end)
@@ -194,14 +194,29 @@ defmodule Gherkin.ConformanceTest do
     #{line}
     """)
 
-    # The harness must always run and produce a real count; it never goes red on a
-    # not-yet-implemented pipeline. As the pipeline lands, the pass numbers climb and
-    # the dedicated per-file assertions below (currently skipped) take over.
+    # Sanity: the vendored corpus must be present.
     assert n_ast > 0, "expected vendored good/ features"
     assert n_err > 0, "expected vendored bad/ features"
-  end
 
-  # When the pipeline is implemented, flip these into real per-file assertions (drop
-  # the :pending moduletag or split this into its own module) so each corpus file is a
-  # discrete pass/fail in the suite rather than just a tally line.
+    # The pipeline is fully implemented, so this is now a hard gate: every corpus area
+    # must be 100% pass with zero fail/pending/error. This makes `mix conformance`
+    # (and `mix test --only conformance`) exit non-zero the moment any area regresses,
+    # so CI fails loudly instead of silently printing a lower scoreboard.
+    assert {ast.pass, ast.fail, ast.not_implemented, ast.error} == {n_ast, 0, 0, 0},
+           "AST conformance regressed: #{inspect(ast)} of #{n_ast}"
+
+    assert {pickle.pass, pickle.fail, pickle.not_implemented, pickle.error} ==
+             {n_pickle, 0, 0, 0},
+           "Pickles conformance regressed: #{inspect(pickle)} of #{n_pickle}"
+
+    assert {err.pass, err.fail, err.not_implemented, err.error} == {n_err, 0, 0, 0},
+           "Errors conformance regressed: #{inspect(err)} of #{n_err}"
+
+    assert {md_ast.pass, md_ast.fail, md_ast.not_implemented, md_ast.error} == {n_md, 0, 0, 0},
+           "Markdown AST conformance regressed: #{inspect(md_ast)} of #{n_md}"
+
+    assert {md_pickle.pass, md_pickle.fail, md_pickle.not_implemented, md_pickle.error} ==
+             {n_md, 0, 0, 0},
+           "Markdown Pickles conformance regressed: #{inspect(md_pickle)} of #{n_md}"
+  end
 end

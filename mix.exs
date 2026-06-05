@@ -2,16 +2,22 @@ defmodule Gherkin.Mixfile do
   use Mix.Project
 
   @version "2.0.0"
+
+  # NOTE: the hex package name and `app:` are intentionally left as `:gherkin`.
+  # Renaming the published package is a separate, deferred decision; this fork
+  # only retargets the source/homepage/links metadata below.
+  @source_url "https://github.com/tomasz-tomczyk/gherkin"
+
   def project do
     [
       app: :gherkin,
       version: @version,
       elixir: "~> 1.18",
-      source_url: "https://github.com/cabbage-ex/gherkin",
-      homepage_url: "https://github.com/cabbage-ex/gherkin",
+      source_url: @source_url,
+      homepage_url: @source_url,
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
-      description: "Gherkin file parser for Elixir",
+      description: "Spec-conformant Gherkin (.feature) parser for Elixir",
       docs: [
         main: Gherkin,
         readme: "README.md",
@@ -20,7 +26,10 @@ defmodule Gherkin.Mixfile do
       package: package(),
       deps: deps(),
       aliases: aliases(),
-      test_coverage: [tool: ExCoveralls]
+      # Built-in coverage (`mix test --cover`), replacing excoveralls. The summary is
+      # informational, not a gate: threshold 0 keeps `--cover` from exiting non-zero
+      # on coverage alone, so the test/conformance gates stay the source of CI truth.
+      test_coverage: [summary: [threshold: 0]]
     ]
   end
 
@@ -42,16 +51,18 @@ defmodule Gherkin.Mixfile do
   # Type "mix help deps" for more examples and options
   defp deps do
     [
-      {:ex_doc, "~> 0.29", only: :dev, runtime: false},
-      {:excoveralls, "~> 0.10", only: :test}
+      {:ex_doc, "~> 0.29", only: :dev, runtime: false}
     ]
   end
 
   defp package do
     [
-      maintainers: ["Matt Widmann", "Steve B"],
+      maintainers: ["Matt Widmann", "Steve B", "Max Marcon", "Tomasz Tomczyk"],
       licenses: ["MIT"],
-      links: %{github: "https://github.com/cabbage-ex/gherkin"}
+      links: %{
+        "GitHub" => @source_url,
+        "Upstream (cabbage-ex/gherkin)" => "https://github.com/cabbage-ex/gherkin"
+      }
     ]
   end
 
