@@ -53,7 +53,7 @@ Add `:gherkin` to your deps:
 
 ```elixir
 def deps do
-  [{:gherkin, "~> 2.0"}]
+  [{:gherkin, "~> 3.0"}]
 end
 ```
 

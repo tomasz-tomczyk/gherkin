@@ -1,7 +1,7 @@
 defmodule Gherkin.Mixfile do
   use Mix.Project
 
-  @version "2.0.0"
+  @version "3.0.0"
 
   # NOTE: the hex package name and `app:` are intentionally left as `:gherkin`.
   # Renaming the published package is a separate, deferred decision; this fork
@@ -64,8 +64,12 @@ defmodule Gherkin.Mixfile do
     [
       maintainers: ["Matt Widmann", "Steve B", "Max Marcon", "Tomasz Tomczyk"],
       licenses: ["MIT"],
+      # Explicit so the MIT LICENSE, changelog, and upgrade guide are always
+      # shipped in the published tarball (not just relied on via Hex defaults).
+      files: ~w(lib priv .formatter.exs mix.exs README.md CHANGELOG.md UPGRADING.md LICENSE),
       links: %{
         "GitHub" => @source_url,
+        "Changelog" => "#{@source_url}/blob/master/CHANGELOG.md",
         "Upstream (cabbage-ex/gherkin)" => "https://github.com/cabbage-ex/gherkin"
       }
     ]
