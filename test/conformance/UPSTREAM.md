@@ -7,6 +7,9 @@ vendored **verbatim** from the official Cucumber Gherkin reference implementatio
 - Upstream commit: `374bc7a8f308a02d9ad1b45e02e8a3189c99f5dc`
 - Vendored on: 2026-06-05
 
+This vendored data is licensed under the MIT License by the Cucumber project; the
+upstream license text is preserved verbatim in `testdata/LICENSE.upstream`.
+
 ## What was copied
 
 | Source (upstream)                | Destination (this repo)                      |
