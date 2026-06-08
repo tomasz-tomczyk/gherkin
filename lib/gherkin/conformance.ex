@@ -32,16 +32,27 @@ defmodule Gherkin.Conformance do
   # Parse through the configured backend, routing `.feature.md` uris to the Markdown
   # dialect via the optional `parse/3` callback (falling back to plain `parse/2` for
   # backends that do not implement it).
+  #
+  # `function_exported?/3` returns `false` for a module that has not yet been *loaded*,
+  # so it must be paired with `Code.ensure_loaded?/1`. Without that, the very first
+  # `.feature.md` parse in a fresh VM (before anything else touches the backend module)
+  # silently falls through to the plain `parse/2`, which runs the classic `.feature`
+  # scanner over Markdown and produces spurious parse errors instead of the AST. This
+  # is exactly what dropped `feature.description` for the CCK `markdown` sample.
   defp parse(uri, data) do
     backend = pipeline()
 
     cond do
-      String.ends_with?(uri, ".md") and function_exported?(backend, :parse, 3) ->
+      String.ends_with?(uri, ".md") and markdown_capable?(backend) ->
         backend.parse(uri, data, :markdown)
 
       true ->
         backend.parse(uri, data)
     end
+  end
+
+  defp markdown_capable?(backend) do
+    Code.ensure_loaded?(backend) and function_exported?(backend, :parse, 3)
   end
 
   @doc """

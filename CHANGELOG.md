@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- Markdown-with-Gherkin (`.feature.md`) documents now populate `feature.description`
+  from a leading Markdown table that precedes the first heading, matching the
+  reference parser and the CCK `markdown` sample (`feature.description` is
+  `"| boz | boo |"` for that sample). The parser already produced the description;
+  the conformance routing in `Gherkin.Conformance` used a bare `function_exported?/3`
+  guard that returns `false` for a not-yet-loaded backend module, so the first
+  `.feature.md` parse in a fresh VM silently fell back to the plain `.feature`
+  scanner and emitted spurious parse errors. The router now pairs the check with
+  `Code.ensure_loaded?/1`. The CCK `markdown` sample is vendored into the conformance
+  corpus to pin this.
+
 ## 3.0.0 - 2026-06-05
 
 A near-total rewrite. The 2.x line was a hand-maintained parser that produced a

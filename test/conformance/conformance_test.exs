@@ -219,4 +219,65 @@ defmodule Gherkin.ConformanceTest do
              {n_md, 0, 0, 0},
            "Markdown Pickles conformance regressed: #{inspect(md_pickle)} of #{n_md}"
   end
+
+  # The CCK `markdown` sample is the canonical MDG case where a Markdown table that
+  # precedes the first heading becomes the Feature's `description`. Its leading block
+  # is:
+  #
+  #     | foo | bar |
+  #     | --- | --- |     <- GFM separator row -> #Comment, OPENS the description
+  #     | boz | boo |     <- collected as #Other description text
+  #
+  # so `feature.description` must be exactly "| boz | boo |".
+  #
+  # This guards two things at once:
+  #
+  #   1. the description IS populated (the leading table is not dropped), and
+  #   2. `Gherkin.Conformance.ast_ndjson/2` actually ROUTES `.feature.md` to the
+  #      Markdown scanner. The routing previously used a bare `function_exported?/3`,
+  #      which returns `false` for a not-yet-loaded backend module — so the first
+  #      `.feature.md` parse in a fresh VM silently fell back to the plain `.feature`
+  #      scanner and errored. We purge the backend module here to pin that the routing
+  #      is robust to module load order, not just incidentally correct.
+  describe "markdown feature description (CCK markdown sample)" do
+    @markdown_path Path.join(@good_dir, "markdown.feature.md")
+
+    test "leading pre-heading table becomes feature.description" do
+      data = File.read!(@markdown_path)
+      uri = upstream_uri("good", "markdown.feature.md")
+
+      # Force the "backend module not yet loaded" condition that the routing must
+      # tolerate. `Code.ensure_loaded?/1` inside the router reloads it on demand.
+      backend = Gherkin.Conformance.pipeline()
+      :code.purge(backend)
+      :code.delete(backend)
+      refute :erlang.module_loaded(backend), "precondition: backend must be unloaded"
+
+      assert {:ok, ndjson} = Gherkin.Conformance.ast_ndjson(uri, data)
+
+      doc =
+        ndjson
+        |> String.split("\n", trim: true)
+        |> hd()
+        |> JSON.decode!()
+
+      feature = get_in(doc, ["gherkinDocument", "feature"])
+      assert feature["name"] == "Cheese"
+      assert feature["description"] == "| boz | boo |"
+    end
+
+    test "AST and pickles match their goldens" do
+      data = File.read!(@markdown_path)
+      uri = upstream_uri("good", "markdown.feature.md")
+
+      assert :pass =
+               grade(Gherkin.Conformance.ast_ndjson(uri, data), @markdown_path <> ".ast.ndjson")
+
+      assert :pass =
+               grade(
+                 Gherkin.Conformance.pickles_ndjson(uri, data),
+                 @markdown_path <> ".pickles.ndjson"
+               )
+    end
+  end
 end
