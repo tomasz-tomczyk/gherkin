@@ -20,7 +20,7 @@ jobs:
             otp: "27.0.1"
           - elixir: "1.19.5"
             otp: "28.1"
-          - elixir: "1.20.0-rc.6"
+          - elixir: "1.20.1"
             otp: "27.0.1"
 
     env:
