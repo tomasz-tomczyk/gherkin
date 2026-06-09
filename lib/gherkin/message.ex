@@ -111,8 +111,22 @@ defmodule Gherkin.Message do
 
   defp encode_iodata(other), do: JSON.encode!(other)
 
-  defp location_map(%Gherkin.Location{line: line, column: nil}), do: %{"line" => line}
+  @doc false
+  # Shared by the AST and Pickle serializers: project a `Location` (or nil) into the
+  # messages `{"line", "column"}` map. `column` is dropped when nil; a nil location
+  # yields nil (pickle steps/arguments have no location) and is stripped by `to_ndjson`.
+  @spec location_map(Gherkin.Location.t() | nil) :: map() | nil
+  def location_map(nil), do: nil
+  def location_map(%Gherkin.Location{line: line, column: nil}), do: %{"line" => line}
 
-  defp location_map(%Gherkin.Location{line: line, column: column}),
+  def location_map(%Gherkin.Location{line: line, column: column}),
     do: %{"line" => line, "column" => column}
+
+  @doc false
+  # Shared by the serializers: insert `key` only when `value` is non-nil, so an absent
+  # optional child never becomes an empty object rather than relying solely on the
+  # recursive nil-drop in `to_ndjson`.
+  @spec put_optional(map(), String.t(), term()) :: map()
+  def put_optional(map, _key, nil), do: map
+  def put_optional(map, key, value), do: Map.put(map, key, value)
 end

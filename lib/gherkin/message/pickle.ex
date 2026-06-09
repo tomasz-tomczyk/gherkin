@@ -22,6 +22,8 @@ defmodule Gherkin.Message.Pickle do
 
   alias Gherkin.{Pickle, PickleStep}
 
+  import Gherkin.Message, only: [location_map: 1, put_optional: 3]
+
   @doc "Project a `Gherkin.Pickle` struct into the messages map."
   @spec pickle(Pickle.t()) :: map()
   def pickle(%Pickle{} = p) do
@@ -30,7 +32,7 @@ defmodule Gherkin.Message.Pickle do
       "uri" => p.uri,
       "name" => p.name,
       "language" => p.language,
-      "location" => location(p.location),
+      "location" => location_map(p.location),
       "steps" => Enum.map(p.steps, &step/1),
       "tags" => Enum.map(p.tags, &tag/1),
       "astNodeIds" => p.ast_node_ids
@@ -68,14 +70,4 @@ defmodule Gherkin.Message.Pickle do
   defp tag(%Pickle.Tag{} = t) do
     %{"name" => t.name, "astNodeId" => t.ast_node_id}
   end
-
-  defp location(nil), do: nil
-
-  defp location(%Gherkin.Location{line: line, column: nil}), do: %{"line" => line}
-
-  defp location(%Gherkin.Location{line: line, column: column}),
-    do: %{"line" => line, "column" => column}
-
-  defp put_optional(map, _key, nil), do: map
-  defp put_optional(map, key, value), do: Map.put(map, key, value)
 end

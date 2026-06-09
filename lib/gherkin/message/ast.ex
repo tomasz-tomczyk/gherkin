@@ -33,6 +33,8 @@ defmodule Gherkin.Message.AST do
     Tag
   }
 
+  import Gherkin.Message, only: [location_map: 1, put_optional: 3]
+
   @doc "Project a `GherkinDocument` struct into the messages map."
   @spec document(GherkinDocument.t()) :: map()
   def document(%GherkinDocument{} = doc) do
@@ -45,7 +47,7 @@ defmodule Gherkin.Message.AST do
 
   defp feature(%Feature{} = f) do
     %{
-      "location" => location(f.location),
+      "location" => location_map(f.location),
       "language" => f.language,
       "name" => f.name,
       "description" => f.description,
@@ -64,7 +66,7 @@ defmodule Gherkin.Message.AST do
   defp rule(%Rule{} = r) do
     %{
       "id" => r.id,
-      "location" => location(r.location),
+      "location" => location_map(r.location),
       "keyword" => r.keyword,
       "name" => r.name,
       "description" => r.description,
@@ -79,7 +81,7 @@ defmodule Gherkin.Message.AST do
   defp background(%Background{} = bg) do
     %{
       "id" => bg.id,
-      "location" => location(bg.location),
+      "location" => location_map(bg.location),
       "keyword" => bg.keyword,
       "name" => bg.name,
       "description" => bg.description,
@@ -90,7 +92,7 @@ defmodule Gherkin.Message.AST do
   defp scenario(%Scenario{} = sc) do
     %{
       "id" => sc.id,
-      "location" => location(sc.location),
+      "location" => location_map(sc.location),
       "keyword" => sc.keyword,
       "name" => sc.name,
       "description" => sc.description,
@@ -103,7 +105,7 @@ defmodule Gherkin.Message.AST do
   defp examples(%Examples{} = ex) do
     %{
       "id" => ex.id,
-      "location" => location(ex.location),
+      "location" => location_map(ex.location),
       "keyword" => ex.keyword,
       "name" => ex.name,
       "description" => ex.description,
@@ -116,7 +118,7 @@ defmodule Gherkin.Message.AST do
   defp step(%Step{} = s) do
     %{
       "id" => s.id,
-      "location" => location(s.location),
+      "location" => location_map(s.location),
       "keyword" => s.keyword,
       "keywordType" => s.keyword_type,
       "text" => s.text
@@ -127,14 +129,14 @@ defmodule Gherkin.Message.AST do
 
   defp data_table(%DataTable{} = dt) do
     %{
-      "location" => location(dt.location),
+      "location" => location_map(dt.location),
       "rows" => Enum.map(dt.rows, &table_row/1)
     }
   end
 
   defp doc_string(%DocString{} = ds) do
     %{
-      "location" => location(ds.location),
+      "location" => location_map(ds.location),
       "content" => ds.content,
       "delimiter" => ds.delimiter
     }
@@ -144,31 +146,20 @@ defmodule Gherkin.Message.AST do
   defp table_row(%TableRow{} = row) do
     %{
       "id" => row.id,
-      "location" => location(row.location),
+      "location" => location_map(row.location),
       "cells" => Enum.map(row.cells, &table_cell/1)
     }
   end
 
   defp table_cell(%TableCell{} = c) do
-    %{"location" => location(c.location), "value" => c.value}
+    %{"location" => location_map(c.location), "value" => c.value}
   end
 
   defp tag(%Tag{} = t) do
-    %{"id" => t.id, "location" => location(t.location), "name" => t.name}
+    %{"id" => t.id, "location" => location_map(t.location), "name" => t.name}
   end
 
   defp comment(%Comment{} = c) do
-    %{"location" => location(c.location), "text" => c.text}
+    %{"location" => location_map(c.location), "text" => c.text}
   end
-
-  defp location(%Gherkin.Location{line: line, column: nil}), do: %{"line" => line}
-
-  defp location(%Gherkin.Location{line: line, column: column}),
-    do: %{"line" => line, "column" => column}
-
-  # `to_ndjson` drops nils recursively, but we avoid even inserting keys whose value
-  # is a nil sub-tree (mediaType, optional feature, dataTable/docString) so the shape
-  # is obvious and we never emit an empty object for an absent child.
-  defp put_optional(map, _key, nil), do: map
-  defp put_optional(map, key, value), do: Map.put(map, key, value)
 end

@@ -7,6 +7,21 @@ defmodule Gherkin do
 
       Source text --(parse)--> %Gherkin.AST.GherkinDocument{} --(pickles)--> [%Gherkin.Pickle{}]
 
+  ## Architecture
+
+  Internally the work happens in four stages, each its own module cluster — read them
+  in this order to follow a document end to end:
+
+      Scanner / MarkdownScanner          lex:        source text -> one `Token` per line
+      AstParser                          parse:      tokens -> `Gherkin.AST` struct tree
+      AstParser.PickleCompiler           compile:    AST -> `Gherkin.Pickle` (runnable)
+      Message (+ Message.{AST,Pickle})   serialize:  structs -> cucumber-messages NDJSON
+
+  Supporting modules: `Gherkin.Dialect` drives i18n keyword matching (80 languages) and
+  `Gherkin.AstParser.IdAssigner` numbers AST nodes in the reference's emission order.
+  `Gherkin.Conformance` is test/CI-only — it drives the cucumber Compatibility Kit corpus
+  and is not part of the runtime parse path.
+
   ## Functions
 
     * `parse/2` / `parse!/2` — produce the AST (`%Gherkin.AST.GherkinDocument{}`).
