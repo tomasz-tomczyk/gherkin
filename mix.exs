@@ -2,10 +2,6 @@ defmodule Gherkin.Mixfile do
   use Mix.Project
 
   @version "3.0.0"
-
-  # NOTE: the hex package name and `app:` are intentionally left as `:gherkin`.
-  # Renaming the published package is a separate, deferred decision; this fork
-  # only retargets the source/homepage/links metadata below.
   @source_url "https://github.com/tomasz-tomczyk/gherkin"
 
   def project do
@@ -38,22 +34,10 @@ defmodule Gherkin.Mixfile do
   # with "mix test is running in the dev environment". CI relies on this too.
   def cli, do: [preferred_envs: [conformance: :test]]
 
-  # Configuration for the OTP application
-  #
-  # Type "mix help compile.app" for more information
   def application do
     [extra_applications: [:logger, :runtime_tools]]
   end
 
-  # Dependencies can be Hex packages:
-  #
-  #   {:mydep, "~> 0.3.0"}
-  #
-  # Or git/path repositories:
-  #
-  #   {:mydep, git: "https://github.com/elixir-lang/mydep.git", tag: "0.1.0"}
-  #
-  # Type "mix help deps" for more examples and options
   defp deps do
     [
       {:ex_doc, "~> 0.29", only: :dev, runtime: false}

@@ -3,8 +3,7 @@ defmodule Gherkin.Message.AST do
   Projects a `Gherkin.AST.GherkinDocument` struct tree into the cucumber-messages
   `GherkinDocument` map shape consumed by `Gherkin.Message.to_ndjson/1`.
 
-  This is the AST serializer seam from `ARCHITECTURE.md`. It is a mechanical
-  snake_case -> camelCase projection that:
+  It is a mechanical snake_case -> camelCase projection that:
 
     * emits `location` maps (`column` dropped when nil — handled by `to_ndjson`),
     * keeps trailing-space step keywords as-is,

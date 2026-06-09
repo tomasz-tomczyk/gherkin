@@ -12,27 +12,6 @@ reference Cucumber implementations use:
 source text --(parse)--> %Gherkin.AST.GherkinDocument{} --(pickles)--> [%Gherkin.Pickle{}]
 ```
 
-## Conformance
-
-Validated against the official [`cucumber/gherkin`](https://github.com/cucumber/gherkin)
-`testdata` corpus, byte-for-byte against the upstream golden NDJSON (after key
-sorting + URI normalization):
-
-| Area                    | Score  |
-| ----------------------- | ------ |
-| AST                     | 46/46  |
-| Pickles                 | 46/46  |
-| Errors (bad input)      | 11/11  |
-| Markdown AST            | 5/5    |
-| Markdown Pickles        | 5/5    |
-
-The conformance suite is a CI gate: it asserts 100% in every area and fails the
-build on any regression. Run it locally with:
-
-```sh
-mix conformance      # alias for: mix test --only conformance
-```
-
 ## Highlights
 
 - **Spec-conformant** — full AST, pickle compilation, error reporting, and the
@@ -41,21 +20,6 @@ mix conformance      # alias for: mix test --only conformance
 - **Built-in JSON** — uses Elixir 1.18+'s built-in `JSON` module, no `jason`.
 - **80 dialects** — the i18n keyword data is vendored and loaded once into
   `:persistent_term`.
-
-## Requirements
-
-- Elixir `~> 1.18` (built and tested on 1.18, 1.19, and 1.20)
-- Erlang/OTP 27+
-
-## Installation
-
-Add `:gherkin` to your deps:
-
-```elixir
-def deps do
-  [{:gherkin, "~> 3.0"}]
-end
-```
 
 ## Usage
 
@@ -90,15 +54,38 @@ substitutes `<placeholder>` values:
   (`.feature.md`). Defaults to auto-detection: a `:uri` ending in `.md` is parsed
   as Markdown.
 
-## Attribution
+## Installation
 
-This is a fork of [`cabbage-ex/gherkin`](https://github.com/cabbage-ex/gherkin),
-modernized for current Elixir and brought to full upstream conformance. The
-original parser was extracted from
-[white-bread](https://github.com/meadsteve/white-bread).
+Add `:gherkin` to your deps:
 
-Original authors: Matt Widmann, Steve B, and Max Marcon.
+```elixir
+def deps do
+  [{:gherkin, "~> 3.0"}]
+end
+```
 
-## License
+## Requirements
 
-MIT. See [LICENSE](LICENSE).
+- Elixir `~> 1.18` (built and tested on 1.18, 1.19, and 1.20)
+- Erlang/OTP 27+
+
+## Conformance
+
+Validated against the official [`cucumber/gherkin`](https://github.com/cucumber/gherkin)
+`testdata` corpus, byte-for-byte against the upstream golden NDJSON (after key
+sorting + URI normalization):
+
+| Area                    | Score  |
+| ----------------------- | ------ |
+| AST                     | 46/46  |
+| Pickles                 | 46/46  |
+| Errors (bad input)      | 11/11  |
+| Markdown AST            | 5/5    |
+| Markdown Pickles        | 5/5    |
+
+The conformance suite is a CI gate: it asserts 100% in every area and fails the
+build on any regression. Run it locally with:
+
+```sh
+mix conformance      # alias for: mix test --only conformance
+```

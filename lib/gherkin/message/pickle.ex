@@ -3,8 +3,8 @@ defmodule Gherkin.Message.Pickle do
   Projects a `Gherkin.Pickle` struct into the cucumber-messages `Pickle` map shape
   consumed by `Gherkin.Message.to_ndjson/1`.
 
-  This is the pickle serializer seam from `ARCHITECTURE.md`. Like `Gherkin.Message.AST`
-  it is a mechanical snake_case -> camelCase projection; `to_ndjson` handles the
+  Like `Gherkin.Message.AST` it is a mechanical snake_case -> camelCase projection;
+  `to_ndjson` handles the
   alphabetical key-sort and recursive nil-drop, so this module only assembles maps.
 
   Shape notes that match the goldens:

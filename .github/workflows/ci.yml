@@ -15,10 +15,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pairs taken from the official Elixir/Erlang compatibility table:
-        #   1.18 -> OTP 25-27, 1.19 -> OTP 26-28, 1.20 -> OTP 27-29.
-        # 1.20 is still a release candidate, so it is pinned to the exact RC the
-        # project's .tool-versions baseline uses.
         include:
           - elixir: "1.18.1"
             otp: "27.0.1"
@@ -31,7 +27,7 @@ jobs:
       MIX_ENV: test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up BEAM
         uses: erlef/setup-beam@v1
@@ -40,7 +36,7 @@ jobs:
           otp-version: ${{ matrix.otp }}
 
       - name: Restore deps and _build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             deps
@@ -61,8 +57,5 @@ jobs:
       - name: Run tests
         run: mix test
 
-      # Conformance gate against the vendored upstream cucumber/gherkin corpus.
-      # The conformance test asserts 100% pass in every area (AST/Pickles/Errors +
-      # Markdown twins), so this exits non-zero on any regression.
       - name: Conformance gate
         run: mix conformance
