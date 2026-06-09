@@ -2,7 +2,7 @@ defmodule Gherkin.Mixfile do
   use Mix.Project
 
   @version "3.0.0"
-  @source_url "https://github.com/tomasz-tomczyk/gherkin"
+  @source_url "https://github.com/cabbage-ex/gherkin"
 
   def project do
     [
@@ -53,8 +53,7 @@ defmodule Gherkin.Mixfile do
       files: ~w(lib priv .formatter.exs mix.exs README.md CHANGELOG.md UPGRADING.md LICENSE),
       links: %{
         "GitHub" => @source_url,
-        "Changelog" => "#{@source_url}/blob/master/CHANGELOG.md",
-        "Upstream (cabbage-ex/gherkin)" => "https://github.com/cabbage-ex/gherkin"
+        "Changelog" => "#{@source_url}/blob/master/CHANGELOG.md"
       }
     ]
   end
